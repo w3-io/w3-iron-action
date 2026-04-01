@@ -27601,6 +27601,10 @@ async function run() {
     // Webhook inputs
     const webhookId = core.getInput("webhook-id") || "";
 
+    // Chain inputs
+    const sourceChain = core.getInput("source-chain") || "";
+    const destinationChain = core.getInput("destination-chain") || "";
+
     // Address inputs
     const countryCode = core.getInput("country-code") || "";
     const vaspQuery = core.getInput("vasp-query") || "";
@@ -27611,8 +27615,18 @@ async function run() {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
+    // Auto-generate idempotency key for write operations if not provided
     if (idempotencyKey) {
       headers["IDEMPOTENCY-KEY"] = idempotencyKey;
+    } else if (
+      command.startsWith("create-") ||
+      command.startsWith("register-") ||
+      command.startsWith("update-") ||
+      command === "cancel-autoramp" ||
+      command === "patch-autoramp" ||
+      command.startsWith("sandbox-")
+    ) {
+      headers["IDEMPOTENCY-KEY"] = crypto.randomUUID();
     }
 
     async function request(method, path, bodyObj) {
@@ -28018,9 +28032,20 @@ async function run() {
       }
 
       case "get-exchange-rate": {
+        // Infer currency types: fiat currencies are 3-letter ISO (USD, EUR, GBP)
+        const src = sourceCurrency || baseCurrency;
+        const dst = destinationCurrency || quoteCurrency;
+        const fiatCodes = ["USD", "EUR", "GBP", "CHF", "CAD", "AUD", "JPY", "CNY", "HKD", "SGD"];
+        const srcType = fiatCodes.includes(src.toUpperCase()) ? "fiat" : "crypto";
+        const dstType = fiatCodes.includes(dst.toUpperCase()) ? "fiat" : "crypto";
         const qs = queryString({
-          base_currency: baseCurrency,
-          quote_currency: quoteCurrency,
+          source_currency_code: src,
+          source_currency_type: srcType,
+          destination_currency_code: dst,
+          destination_currency_type: dstType,
+          source_currency_chain: srcType === "crypto" ? (sourceChain || "Ethereum") : "",
+          destination_currency_chain: dstType === "crypto" ? (destinationChain || "Ethereum") : "",
+          amount: sourceAmount,
         });
         result = await request("GET", `/exchange-rate${qs}`);
         break;
@@ -28032,7 +28057,8 @@ async function run() {
       }
 
       case "get-terms": {
-        result = await request("GET", "/terms-and-conditions");
+        const qs = queryString({ country: countryCode });
+        result = await request("GET", `/terms-and-conditions${qs}`);
         break;
       }
 
