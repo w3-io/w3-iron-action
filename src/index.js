@@ -4,7 +4,11 @@ async function run() {
   try {
     const command = core.getInput("command", { required: true }).toLowerCase();
     const apiKey = core.getInput("api-key", { required: true });
-    const apiUrl = core.getInput("api-url") || "https://api.iron.xyz";
+    const apiUrlRaw = core.getInput("api-url") || "https://api.iron.xyz";
+    // Ensure /api suffix is present
+    const apiUrl = apiUrlRaw.endsWith("/api")
+      ? apiUrlRaw
+      : `${apiUrlRaw.replace(/\/+$/, "")}/api`;
 
     // Common inputs
     const customerId = core.getInput("customer-id") || "";
