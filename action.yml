@@ -1,0 +1,128 @@
+name: 'W3 Iron Action'
+description: 'Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank account management for W3 workflows'
+author: 'w3-io'
+
+inputs:
+  command:
+    description: >
+      Operation: create-autoramp, get-autoramp, get-autoramp-by-external-id, list-autoramps,
+      cancel-autoramp, patch-autoramp, get-quote, check-limit, retry-autoramp-auth,
+      create-open-banking-payment, get-open-banking-payment,
+      list-transactions, get-transactions-by-ids,
+      create-customer, get-customer, get-customer-by-external-id, update-customer,
+      list-customers, get-customer-abilities,
+      create-identification, get-identification, list-identifications, get-compliance-questionnaire,
+      create-signing, list-signings, get-required-signings,
+      register-hosted-wallet, register-selfhosted-wallet, list-crypto-addresses,
+      disable-crypto-address, search-vasps,
+      register-bank-account, list-bank-accounts, get-bank-account, delete-bank-account, retry-bank-auth,
+      get-auth-code, submit-auth-code, get-microdeposits,
+      list-cryptocurrencies, list-fiat-currencies, get-exchange-rate, get-fee-profiles,
+      get-terms, get-country-subdivisions,
+      list-webhooks, update-webhook, ping-webhook,
+      sandbox-reset, sandbox-mock-transaction, sandbox-update-autoramp,
+      sandbox-update-fiat-verification, sandbox-update-identification, sandbox-update-transaction
+    required: true
+  api-key:
+    description: 'Iron API key (X-API-Key header)'
+    required: true
+  api-url:
+    description: 'API base URL (production or sandbox)'
+    required: false
+    default: 'https://api.iron.xyz'
+  customer-id:
+    description: 'Customer ID'
+    required: false
+    default: ''
+  autoramp-id:
+    description: 'Autoramp ID'
+    required: false
+    default: ''
+  external-id:
+    description: 'External ID (for cross-referencing with your system)'
+    required: false
+    default: ''
+  address-id:
+    description: 'Address, identification, or entity ID (context-dependent)'
+    required: false
+    default: ''
+  body:
+    description: 'Request body as JSON (for create/update operations)'
+    required: false
+    default: ''
+  limit:
+    description: 'Pagination limit'
+    required: false
+    default: ''
+  offset:
+    description: 'Pagination offset'
+    required: false
+    default: ''
+  status:
+    description: 'Status filter for list operations'
+    required: false
+    default: ''
+  idempotency-key:
+    description: 'Idempotency key (UUID) for write operations'
+    required: false
+    default: ''
+  source-currency:
+    description: 'Source currency for quotes (e.g. USD, USDC)'
+    required: false
+    default: ''
+  destination-currency:
+    description: 'Destination currency for quotes'
+    required: false
+    default: ''
+  source-amount:
+    description: 'Amount in source currency (for quotes)'
+    required: false
+    default: ''
+  destination-amount:
+    description: 'Amount in destination currency (for quotes)'
+    required: false
+    default: ''
+  side:
+    description: 'Quote side (source or destination amount fixed)'
+    required: false
+    default: ''
+  base-currency:
+    description: 'Base currency for exchange rate'
+    required: false
+    default: ''
+  quote-currency:
+    description: 'Quote currency for exchange rate'
+    required: false
+    default: ''
+  transaction-ids:
+    description: 'Comma-separated transaction IDs'
+    required: false
+    default: ''
+  sandbox-status:
+    description: 'Status for sandbox update operations'
+    required: false
+    default: ''
+  webhook-id:
+    description: 'Webhook ID'
+    required: false
+    default: ''
+  country-code:
+    description: 'ISO country code'
+    required: false
+    default: ''
+  vasp-query:
+    description: 'Search query for hosted wallet providers (VASPs)'
+    required: false
+    default: ''
+  payment-id:
+    description: 'Open banking payment ID'
+    required: false
+    default: ''
+
+outputs:
+  result:
+    description: 'Command result as JSON string'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
