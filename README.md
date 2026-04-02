@@ -1,10 +1,38 @@
 # W3 Iron Action
 
-Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank account management for W3 workflows. 48 commands covering the complete Iron API.
+Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank account management for W3 workflows.
+
+## Quick Start
+
+```yaml
+- uses: w3/iron@v1
+  id: quote
+  with:
+    command: get-quote
+    api-key: ${{ secrets.IRON_API_KEY }}
+    customer-id: cust_123
+    source-currency: USD
+    destination-currency: USDC
+    source-amount: '1000'
+
+- uses: w3/iron@v1
+  with:
+    command: create-autoramp
+    api-key: ${{ secrets.IRON_API_KEY }}
+    body: |
+      {
+        "customer_id": "cust_123",
+        "source_currency": "USD",
+        "destination_currency": "USDC",
+        "source_amount": "1000",
+        "deposit_rail": "ach",
+        "destination_address_id": "addr_456"
+      }
+```
 
 ## Commands
 
-### Autoramps (Core)
+### Autoramps
 
 | Command | Description |
 |---------|-------------|
@@ -17,6 +45,11 @@ Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank
 | `get-quote` | Get a locked-rate quote for an autoramp |
 | `check-limit` | Check if a customer can create more autoramps |
 | `retry-autoramp-auth` | Retry authentication for an autoramp |
+
+### Open Banking
+
+| Command | Description |
+|---------|-------------|
 | `create-open-banking-payment` | Create an open banking payment link |
 | `get-open-banking-payment` | Get an open banking payment status |
 
@@ -75,7 +108,7 @@ Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank
 | `delete-bank-account` | Delete a bank account |
 | `retry-bank-auth` | Retry bank account authentication |
 
-### Authentication
+### Bank Account Authentication
 
 | Command | Description |
 |---------|-------------|
@@ -113,136 +146,47 @@ Iron fiat-to-crypto on/off-ramp, autoramps, stablecoin operations, KYC, and bank
 | `sandbox-update-identification` | Update identification status in sandbox |
 | `sandbox-update-transaction` | Update transaction state in sandbox |
 
-## Usage
+## Inputs
 
-### On-Ramp (Fiat to Crypto)
-
-```yaml
-# Get a quote first
-- uses: w3/iron@v1
-  id: quote
-  with:
-    command: get-quote
-    api-key: ${{ secrets.IRON_API_KEY }}
-    customer-id: cust_123
-    source-currency: USD
-    destination-currency: USDC
-    source-amount: '1000'
-
-# Create the autoramp
-- uses: w3/iron@v1
-  with:
-    command: create-autoramp
-    api-key: ${{ secrets.IRON_API_KEY }}
-    body: |
-      {
-        "customer_id": "cust_123",
-        "source_currency": "USD",
-        "destination_currency": "USDC",
-        "source_amount": "1000",
-        "deposit_rail": "ach",
-        "destination_address_id": "addr_456"
-      }
-```
-
-### Off-Ramp (Crypto to Fiat)
-
-```yaml
-- uses: w3/iron@v1
-  with:
-    command: create-autoramp
-    api-key: ${{ secrets.IRON_API_KEY }}
-    body: |
-      {
-        "customer_id": "cust_123",
-        "source_currency": "USDC",
-        "destination_currency": "USD",
-        "source_amount": "500",
-        "destination_address_id": "bank_789"
-      }
-```
-
-### Customer Onboarding
-
-```yaml
-# Create customer
-- uses: w3/iron@v1
-  id: customer
-  with:
-    command: create-customer
-    api-key: ${{ secrets.IRON_API_KEY }}
-    body: |
-      {
-        "type": "person",
-        "first_name": "Alice",
-        "last_name": "Smith",
-        "email": "alice@example.com",
-        "external_id": "my-system-id-123"
-      }
-
-# Start KYC
-- uses: w3/iron@v1
-  with:
-    command: create-identification
-    api-key: ${{ secrets.IRON_API_KEY }}
-    customer-id: ${{ fromJson(steps.customer.outputs.result).id }}
-```
-
-### Sandbox Testing
-
-```yaml
-# Use sandbox API
-- uses: w3/iron@v1
-  with:
-    command: sandbox-mock-transaction
-    api-key: ${{ secrets.IRON_SANDBOX_KEY }}
-    api-url: https://api.sandbox.iron.xyz
-    body: |
-      {
-        "autoramp_id": "ar_123",
-        "amount": "100",
-        "currency": "USD"
-      }
-```
-
-## Configuration
-
-| Input | Required | Description |
-|-------|----------|-------------|
-| `command` | Yes | Operation to perform (48 commands) |
-| `api-key` | Yes | Iron API key |
-| `api-url` | No | API base URL (default: `https://api.iron.xyz`, sandbox: `https://api.sandbox.iron.xyz`) |
-| `customer-id` | No | Customer ID |
-| `autoramp-id` | No | Autoramp ID |
-| `external-id` | No | External ID for cross-referencing |
-| `address-id` | No | Address/entity/identification ID |
-| `body` | No | Request body as JSON |
-| `limit` | No | Pagination limit |
-| `offset` | No | Pagination offset |
-| `status` | No | Status filter |
-| `idempotency-key` | No | UUID for idempotent write operations |
-| `source-currency` | No | Source currency for quotes |
-| `destination-currency` | No | Destination currency for quotes |
-| `source-amount` | No | Source amount for quotes |
-| `destination-amount` | No | Destination amount for quotes |
-| `base-currency` | No | Base currency for exchange rates |
-| `quote-currency` | No | Quote currency for exchange rates |
-| `transaction-ids` | No | Comma-separated transaction IDs |
-| `sandbox-status` | No | Status for sandbox operations |
-| `webhook-id` | No | Webhook ID |
-| `country-code` | No | ISO country code |
-| `vasp-query` | No | VASP search query |
-| `payment-id` | No | Open banking payment ID |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `command` | Yes | | Operation to perform (48 commands) |
+| `api-key` | Yes | | Iron API key (`X-API-Key` header) |
+| `api-url` | No | `https://api.iron.xyz` | API base URL (production or sandbox) |
+| `customer-id` | No | | Customer ID |
+| `autoramp-id` | No | | Autoramp ID |
+| `external-id` | No | | External ID for cross-referencing with your system |
+| `address-id` | No | | Address, identification, or entity ID (context-dependent) |
+| `body` | No | | Request body as JSON (for create/update operations) |
+| `limit` | No | | Pagination limit |
+| `offset` | No | | Pagination offset |
+| `status` | No | | Status filter for list operations |
+| `idempotency-key` | No | | UUID for idempotent write operations |
+| `source-currency` | No | | Source currency for quotes (e.g. USD, USDC) |
+| `destination-currency` | No | | Destination currency for quotes |
+| `source-amount` | No | | Amount in source currency |
+| `destination-amount` | No | | Amount in destination currency |
+| `side` | No | | Quote side (source or destination amount fixed) |
+| `base-currency` | No | | Base currency for exchange rate |
+| `quote-currency` | No | | Quote currency for exchange rate |
+| `transaction-ids` | No | | Comma-separated transaction IDs |
+| `sandbox-status` | No | | Status for sandbox update operations |
+| `webhook-id` | No | | Webhook ID |
+| `country-code` | No | | ISO country code |
+| `vasp-query` | No | | VASP search query |
+| `payment-id` | No | | Open banking payment ID |
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
+| Name | Description |
+|------|-------------|
 | `result` | Command result as JSON string |
 
-## Environments
+## Authentication
 
-| Environment | URL | Purpose |
-|-------------|-----|---------|
-| Production | `https://api.iron.xyz` | Live operations |
-| Sandbox | `https://api.sandbox.iron.xyz` | Testing with mock data |
+Iron uses API key authentication via the `X-API-Key` header. Get your API key from the Iron dashboard.
+
+| Environment | URL |
+|-------------|-----|
+| Production | `https://api.iron.xyz` (default) |
+| Sandbox | `https://api.sandbox.iron.xyz` |
