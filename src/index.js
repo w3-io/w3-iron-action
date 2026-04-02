@@ -38,9 +38,6 @@ async function run() {
     // Sandbox inputs
     const sandboxStatus = core.getInput("sandbox-status") || "";
 
-    // Identification inputs
-    const identificationType = core.getInput("identification-type") || "";
-
     // Webhook inputs
     const webhookId = core.getInput("webhook-id") || "";
 
