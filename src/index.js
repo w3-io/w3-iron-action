@@ -1,616 +1,516 @@
-const core = require("@actions/core");
+import { createCommandRouter, setJsonOutput, handleError } from '@w3-io/action-core'
+import * as core from '@actions/core'
 
-async function run() {
-  try {
-    const command = core.getInput("command", { required: true }).toLowerCase();
-    const apiKey = core.getInput("api-key", { required: true });
-    const apiUrlRaw = core.getInput("api-url") || "https://api.iron.xyz";
-    // Ensure /api suffix is present
-    const apiUrl = apiUrlRaw.endsWith("/api")
-      ? apiUrlRaw
-      : `${apiUrlRaw.replace(/\/+$/, "")}/api`;
+// -- Shared helpers -----------------------------------------------------------
 
-    // Common inputs
-    const customerId = core.getInput("customer-id") || "";
-    const autorampId = core.getInput("autoramp-id") || "";
-    const externalId = core.getInput("external-id") || "";
-    const addressId = core.getInput("address-id") || "";
-    const body = core.getInput("body") || "";
-    const limit = core.getInput("limit") || "";
-    const offset = core.getInput("offset") || "";
-    const status = core.getInput("status") || "";
-    const idempotencyKey = core.getInput("idempotency-key") || "";
+function getApiUrl() {
+  const raw = core.getInput('api-url') || 'https://api.iron.xyz'
+  return raw.endsWith('/api') ? raw : `${raw.replace(/\/+$/, '')}/api`
+}
 
-    // Quote inputs
-    const sourceCurrency = core.getInput("source-currency") || "";
-    const destinationCurrency = core.getInput("destination-currency") || "";
-    const sourceAmount = core.getInput("source-amount") || "";
-    const destinationAmount = core.getInput("destination-amount") || "";
-    const side = core.getInput("side") || "";
+function buildHeaders(apiKey, command) {
+  const idempotencyKey = core.getInput('idempotency-key') || ''
+  const headers = {
+    'X-API-Key': apiKey,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }
+  if (idempotencyKey) {
+    headers['IDEMPOTENCY-KEY'] = idempotencyKey
+  } else if (
+    command.startsWith('create-') ||
+    command.startsWith('register-') ||
+    command.startsWith('update-') ||
+    command === 'cancel-autoramp' ||
+    command === 'patch-autoramp' ||
+    command.startsWith('sandbox-')
+  ) {
+    headers['IDEMPOTENCY-KEY'] = crypto.randomUUID()
+  }
+  return headers
+}
 
-    // Exchange rate inputs
-    const baseCurrency = core.getInput("base-currency") || "";
-    const quoteCurrency = core.getInput("quote-currency") || "";
-
-    // Transaction inputs
-    const transactionIds = core.getInput("transaction-ids") || "";
-
-    // Sandbox inputs
-    const sandboxStatus = core.getInput("sandbox-status") || "";
-
-    // Webhook inputs
-    const webhookId = core.getInput("webhook-id") || "";
-
-    // Chain inputs
-    const sourceChain = core.getInput("source-chain") || "";
-    const destinationChain = core.getInput("destination-chain") || "";
-
-    // Address inputs
-    const countryCode = core.getInput("country-code") || "";
-    const vaspQuery = core.getInput("vasp-query") || "";
-    const paymentId = core.getInput("payment-id") || "";
-
-    const headers = {
-      "X-API-Key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
-    // Auto-generate idempotency key for write operations if not provided
-    if (idempotencyKey) {
-      headers["IDEMPOTENCY-KEY"] = idempotencyKey;
-    } else if (
-      command.startsWith("create-") ||
-      command.startsWith("register-") ||
-      command.startsWith("update-") ||
-      command === "cancel-autoramp" ||
-      command === "patch-autoramp" ||
-      command.startsWith("sandbox-")
-    ) {
-      headers["IDEMPOTENCY-KEY"] = crypto.randomUUID();
+function makeRequest(apiUrl, headers) {
+  return async function request(method, path, bodyObj) {
+    const url = `${apiUrl}${path}`
+    const opts = { method, headers }
+    if (bodyObj && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      opts.body = JSON.stringify(bodyObj)
     }
-
-    async function request(method, path, bodyObj) {
-      const url = `${apiUrl}${path}`;
-      const opts = { method, headers };
-      if (bodyObj && (method === "POST" || method === "PUT" || method === "PATCH")) {
-        opts.body = JSON.stringify(bodyObj);
-      }
-      const res = await fetch(url, opts);
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = text;
-      }
-      if (!res.ok) {
-        const msg = typeof data === "object" ? JSON.stringify(data) : data;
-        throw new Error(`${method} ${path} returned ${res.status}: ${msg}`);
-      }
-      return data;
+    const res = await fetch(url, opts)
+    const text = await res.text()
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
     }
-
-    function queryString(params) {
-      const qs = Object.entries(params)
-        .filter(([, v]) => v !== "")
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-        .join("&");
-      return qs ? `?${qs}` : "";
+    if (!res.ok) {
+      const msg = typeof data === 'object' ? JSON.stringify(data) : data
+      throw new Error(`${method} ${path} returned ${res.status}: ${msg}`)
     }
-
-    function parseBody() {
-      if (!body) throw new Error("body input is required for this command");
-      return JSON.parse(body);
-    }
-
-    let result;
-
-    switch (command) {
-      // -----------------------------------------------------------------
-      // Autoramps
-      // -----------------------------------------------------------------
-
-      case "create-autoramp": {
-        result = await request("POST", "/autoramps", parseBody());
-        break;
-      }
-
-      case "get-autoramp": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request("GET", `/autoramps/${autorampId}`);
-        break;
-      }
-
-      case "get-autoramp-by-external-id": {
-        if (!externalId) throw new Error("external-id is required");
-        result = await request("GET", `/autoramps/${externalId}/external`);
-        break;
-      }
-
-      case "list-autoramps": {
-        const qs = queryString({
-          customer_id: customerId,
-          limit,
-          offset,
-          status,
-        });
-        result = await request("GET", `/autoramps${qs}`);
-        break;
-      }
-
-      case "cancel-autoramp": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request("DELETE", `/autoramps/${autorampId}`);
-        break;
-      }
-
-      case "patch-autoramp": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request("PATCH", `/autoramps/${autorampId}`, parseBody());
-        break;
-      }
-
-      case "get-quote": {
-        const qs = queryString({
-          customer_id: customerId,
-          source_currency: sourceCurrency,
-          destination_currency: destinationCurrency,
-          source_amount: sourceAmount,
-          destination_amount: destinationAmount,
-          side,
-        });
-        result = await request("GET", `/autoramps/quote${qs}`);
-        break;
-      }
-
-      case "check-limit": {
-        const qs = queryString({ customer_id: customerId });
-        result = await request("GET", `/autoramps/check-limit${qs}`);
-        break;
-      }
-
-      case "retry-autoramp-auth": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request("POST", `/autoramps/${autorampId}/retry-auth`);
-        break;
-      }
-
-      case "create-open-banking-payment": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request(
-          "POST",
-          `/autoramps/${autorampId}/payments/open-banking`,
-          body ? parseBody() : {},
-        );
-        break;
-      }
-
-      case "get-open-banking-payment": {
-        if (!paymentId) throw new Error("payment-id is required");
-        result = await request(
-          "GET",
-          `/autoramps/payments/open-banking/${paymentId}`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Transactions
-      // -----------------------------------------------------------------
-
-      case "list-transactions": {
-        const qs = queryString({
-          customer_id: customerId,
-          autoramp_id: autorampId,
-          limit,
-          offset,
-          status,
-        });
-        result = await request("GET", `/autoramp-transactions${qs}`);
-        break;
-      }
-
-      case "get-transactions-by-ids": {
-        if (!transactionIds) throw new Error("transaction-ids is required");
-        const qs = queryString({ ids: transactionIds });
-        result = await request("GET", `/autoramp-transactions/ids${qs}`);
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Customers
-      // -----------------------------------------------------------------
-
-      case "create-customer": {
-        result = await request("POST", "/customers", parseBody());
-        break;
-      }
-
-      case "get-customer": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request("GET", `/customers/${customerId}`);
-        break;
-      }
-
-      case "get-customer-by-external-id": {
-        if (!externalId) throw new Error("external-id is required");
-        result = await request("GET", `/customers/${externalId}/external`);
-        break;
-      }
-
-      case "update-customer": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request("PUT", `/customers/${customerId}`, parseBody());
-        break;
-      }
-
-      case "list-customers": {
-        const qs = queryString({ limit, offset });
-        result = await request("GET", `/customers${qs}`);
-        break;
-      }
-
-      case "get-customer-abilities": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request("GET", `/customers/${customerId}/abilities`);
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // KYC / Identifications
-      // -----------------------------------------------------------------
-
-      case "create-identification": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "POST",
-          `/customers/${customerId}/identifications/v2`,
-          body ? parseBody() : {},
-        );
-        break;
-      }
-
-      case "get-identification": {
-        if (!addressId) throw new Error("address-id is required (identification ID)");
-        result = await request("GET", `/identifications/${addressId}`);
-        break;
-      }
-
-      case "list-identifications": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "GET",
-          `/customers/${customerId}/identifications`,
-        );
-        break;
-      }
-
-      case "get-compliance-questionnaire": {
-        if (!addressId) throw new Error("address-id is required (identification ID)");
-        result = await request(
-          "GET",
-          `/identifications/${addressId}/compliance-questionnaire`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Signings
-      // -----------------------------------------------------------------
-
-      case "create-signing": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "POST",
-          `/customers/${customerId}/signings`,
-          parseBody(),
-        );
-        break;
-      }
-
-      case "list-signings": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request("GET", `/customers/${customerId}/signings`);
-        break;
-      }
-
-      case "get-required-signings": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "GET",
-          `/customers/${customerId}/required-signings`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Crypto Addresses
-      // -----------------------------------------------------------------
-
-      case "register-hosted-wallet": {
-        result = await request(
-          "POST",
-          "/addresses/crypto/hosted",
-          parseBody(),
-        );
-        break;
-      }
-
-      case "register-selfhosted-wallet": {
-        result = await request(
-          "POST",
-          "/addresses/crypto/selfhosted",
-          parseBody(),
-        );
-        break;
-      }
-
-      case "list-crypto-addresses": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "GET",
-          `/addresses/crypto/${customerId}`,
-        );
-        break;
-      }
-
-      case "disable-crypto-address": {
-        if (!addressId) throw new Error("address-id is required");
-        result = await request(
-          "PUT",
-          `/addresses/crypto/${addressId}/disabled`,
-          parseBody(),
-        );
-        break;
-      }
-
-      case "search-vasps": {
-        const qs = queryString({ query: vaspQuery });
-        result = await request(
-          "GET",
-          `/addresses/crypto/hosted/vasps${qs}`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Fiat Addresses (Bank Accounts)
-      // -----------------------------------------------------------------
-
-      case "register-bank-account": {
-        result = await request("POST", "/addresses/fiat", parseBody());
-        break;
-      }
-
-      case "list-bank-accounts": {
-        if (customerId) {
-          result = await request("GET", `/addresses/fiat/${customerId}`);
-        } else {
-          const qs = queryString({ limit, offset, status });
-          result = await request("GET", `/addresses/fiat${qs}`);
-        }
-        break;
-      }
-
-      case "get-bank-account": {
-        if (!customerId) throw new Error("customer-id is required");
-        if (!addressId) throw new Error("address-id is required");
-        result = await request(
-          "GET",
-          `/addresses/fiat/${customerId}/${addressId}`,
-        );
-        break;
-      }
-
-      case "delete-bank-account": {
-        if (!customerId) throw new Error("customer-id is required");
-        if (!addressId) throw new Error("address-id is required");
-        result = await request(
-          "DELETE",
-          `/addresses/fiat/${customerId}/${addressId}`,
-        );
-        break;
-      }
-
-      case "retry-bank-auth": {
-        if (!addressId) throw new Error("address-id is required");
-        result = await request(
-          "POST",
-          `/addresses/fiat/${addressId}/retry-auth`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Authentication Codes
-      // -----------------------------------------------------------------
-
-      case "get-auth-code": {
-        if (!addressId) throw new Error("address-id is required (entity ID)");
-        result = await request(
-          "GET",
-          `/authentication-codes/entity/${addressId}`,
-        );
-        break;
-      }
-
-      case "submit-auth-code": {
-        if (!addressId) throw new Error("address-id is required (auth code ID)");
-        result = await request(
-          "PUT",
-          `/authentication-codes/${addressId}`,
-          parseBody(),
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Microdeposits
-      // -----------------------------------------------------------------
-
-      case "get-microdeposits": {
-        if (!customerId) throw new Error("customer-id is required");
-        result = await request(
-          "GET",
-          `/customers/${customerId}/microdeposits`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Reference Data
-      // -----------------------------------------------------------------
-
-      case "list-cryptocurrencies": {
-        result = await request("GET", "/cryptocurrencies");
-        break;
-      }
-
-      case "list-fiat-currencies": {
-        result = await request("GET", "/fiatcurrencies");
-        break;
-      }
-
-      case "get-exchange-rate": {
-        // Infer currency types: fiat currencies are 3-letter ISO (USD, EUR, GBP)
-        const src = sourceCurrency || baseCurrency;
-        const dst = destinationCurrency || quoteCurrency;
-        const fiatCodes = ["USD", "EUR", "GBP", "CHF", "CAD", "AUD", "JPY", "CNY", "HKD", "SGD"];
-        const srcType = fiatCodes.includes(src.toUpperCase()) ? "fiat" : "crypto";
-        const dstType = fiatCodes.includes(dst.toUpperCase()) ? "fiat" : "crypto";
-        const qs = queryString({
-          source_currency_code: src,
-          source_currency_type: srcType,
-          destination_currency_code: dst,
-          destination_currency_type: dstType,
-          source_currency_chain: srcType === "crypto" ? (sourceChain || "Ethereum") : "",
-          destination_currency_chain: dstType === "crypto" ? (destinationChain || "Ethereum") : "",
-          amount: sourceAmount,
-        });
-        result = await request("GET", `/exchange-rate${qs}`);
-        break;
-      }
-
-      case "get-fee-profiles": {
-        result = await request("GET", "/fee-profiles");
-        break;
-      }
-
-      case "get-terms": {
-        const qs = queryString({ country: countryCode });
-        result = await request("GET", `/terms-and-conditions${qs}`);
-        break;
-      }
-
-      case "get-country-subdivisions": {
-        if (!countryCode) throw new Error("country-code is required");
-        result = await request(
-          "GET",
-          `/country_subdivisions/${countryCode}`,
-        );
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Webhooks
-      // -----------------------------------------------------------------
-
-      case "list-webhooks": {
-        result = await request("GET", "/webhooks");
-        break;
-      }
-
-      case "update-webhook": {
-        if (!webhookId) throw new Error("webhook-id is required");
-        result = await request(
-          "PATCH",
-          `/webhooks/${webhookId}`,
-          parseBody(),
-        );
-        break;
-      }
-
-      case "ping-webhook": {
-        if (!webhookId) throw new Error("webhook-id is required");
-        result = await request("POST", `/webhooks/${webhookId}/ping`);
-        break;
-      }
-
-      // -----------------------------------------------------------------
-      // Sandbox
-      // -----------------------------------------------------------------
-
-      case "sandbox-reset": {
-        result = await request("POST", "/sandbox/reset");
-        break;
-      }
-
-      case "sandbox-mock-transaction": {
-        result = await request("POST", "/sandbox/transaction", parseBody());
-        break;
-      }
-
-      case "sandbox-update-autoramp": {
-        if (!autorampId) throw new Error("autoramp-id is required");
-        result = await request(
-          "PUT",
-          `/sandbox/autoramp/${autorampId}`,
-          { status: sandboxStatus || parseBody().status },
-        );
-        break;
-      }
-
-      case "sandbox-update-fiat-verification": {
-        if (!addressId) throw new Error("address-id is required");
-        result = await request(
-          "PUT",
-          `/sandbox/fiat-verification/${addressId}`,
-          { status: sandboxStatus || parseBody().status },
-        );
-        break;
-      }
-
-      case "sandbox-update-identification": {
-        if (!addressId) throw new Error("address-id is required (identification ID)");
-        result = await request(
-          "POST",
-          `/sandbox/identification/${addressId}`,
-          { status: sandboxStatus || parseBody().status },
-        );
-        break;
-      }
-
-      case "sandbox-update-transaction": {
-        if (!addressId) throw new Error("address-id is required (transaction ID)");
-        result = await request(
-          "PUT",
-          `/sandbox/transaction/${addressId}/state`,
-          { state: sandboxStatus || parseBody().state },
-        );
-        break;
-      }
-
-      default:
-        throw new Error(
-          `Unknown command: ${command}. Available: ` +
-            "create-autoramp, get-autoramp, get-autoramp-by-external-id, list-autoramps, cancel-autoramp, patch-autoramp, get-quote, check-limit, retry-autoramp-auth, create-open-banking-payment, get-open-banking-payment, " +
-            "list-transactions, get-transactions-by-ids, " +
-            "create-customer, get-customer, get-customer-by-external-id, update-customer, list-customers, get-customer-abilities, " +
-            "create-identification, get-identification, list-identifications, get-compliance-questionnaire, " +
-            "create-signing, list-signings, get-required-signings, " +
-            "register-hosted-wallet, register-selfhosted-wallet, list-crypto-addresses, disable-crypto-address, search-vasps, " +
-            "register-bank-account, list-bank-accounts, get-bank-account, delete-bank-account, retry-bank-auth, " +
-            "get-auth-code, submit-auth-code, get-microdeposits, " +
-            "list-cryptocurrencies, list-fiat-currencies, get-exchange-rate, get-fee-profiles, get-terms, get-country-subdivisions, " +
-            "list-webhooks, update-webhook, ping-webhook, " +
-            "sandbox-reset, sandbox-mock-transaction, sandbox-update-autoramp, sandbox-update-fiat-verification, sandbox-update-identification, sandbox-update-transaction",
-        );
-    }
-
-    core.setOutput("result", JSON.stringify(result));
-  } catch (error) {
-    core.setFailed(error.message);
+    return data
   }
 }
 
-run();
+function queryString(params) {
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&')
+  return qs ? `?${qs}` : ''
+}
+
+function parseBody() {
+  const body = core.getInput('body') || ''
+  if (!body) throw new Error('body input is required for this command')
+  return JSON.parse(body)
+}
+
+function setup(command) {
+  const apiKey = core.getInput('api-key', { required: true })
+  const apiUrl = getApiUrl()
+  const headers = buildHeaders(apiKey, command)
+  const request = makeRequest(apiUrl, headers)
+  return { request }
+}
+
+// -- Command handlers ---------------------------------------------------------
+
+function handler(command, fn) {
+  return async () => {
+    const { request } = setup(command)
+    const result = await fn(request)
+    setJsonOutput('result', result)
+  }
+}
+
+const router = createCommandRouter({
+  // -----------------------------------------------------------------
+  // Autoramps
+  // -----------------------------------------------------------------
+
+  'create-autoramp': handler('create-autoramp', async (request) => {
+    return request('POST', '/autoramps', parseBody())
+  }),
+
+  'get-autoramp': handler('get-autoramp', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request('GET', `/autoramps/${autorampId}`)
+  }),
+
+  'get-autoramp-by-external-id': handler('get-autoramp-by-external-id', async (request) => {
+    const externalId = core.getInput('external-id') || ''
+    if (!externalId) throw new Error('external-id is required')
+    return request('GET', `/autoramps/${externalId}/external`)
+  }),
+
+  'list-autoramps': handler('list-autoramps', async (request) => {
+    const qs = queryString({
+      customer_id: core.getInput('customer-id') || '',
+      limit: core.getInput('limit') || '',
+      offset: core.getInput('offset') || '',
+      status: core.getInput('status') || '',
+    })
+    return request('GET', `/autoramps${qs}`)
+  }),
+
+  'cancel-autoramp': handler('cancel-autoramp', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request('DELETE', `/autoramps/${autorampId}`)
+  }),
+
+  'patch-autoramp': handler('patch-autoramp', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request('PATCH', `/autoramps/${autorampId}`, parseBody())
+  }),
+
+  'get-quote': handler('get-quote', async (request) => {
+    const qs = queryString({
+      customer_id: core.getInput('customer-id') || '',
+      source_currency: core.getInput('source-currency') || '',
+      destination_currency: core.getInput('destination-currency') || '',
+      source_amount: core.getInput('source-amount') || '',
+      destination_amount: core.getInput('destination-amount') || '',
+      side: core.getInput('side') || '',
+    })
+    return request('GET', `/autoramps/quote${qs}`)
+  }),
+
+  'check-limit': handler('check-limit', async (request) => {
+    const qs = queryString({ customer_id: core.getInput('customer-id') || '' })
+    return request('GET', `/autoramps/check-limit${qs}`)
+  }),
+
+  'retry-autoramp-auth': handler('retry-autoramp-auth', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request('POST', `/autoramps/${autorampId}/retry-auth`)
+  }),
+
+  'create-open-banking-payment': handler('create-open-banking-payment', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    const body = core.getInput('body') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request(
+      'POST',
+      `/autoramps/${autorampId}/payments/open-banking`,
+      body ? JSON.parse(body) : {},
+    )
+  }),
+
+  'get-open-banking-payment': handler('get-open-banking-payment', async (request) => {
+    const paymentId = core.getInput('payment-id') || ''
+    if (!paymentId) throw new Error('payment-id is required')
+    return request('GET', `/autoramps/payments/open-banking/${paymentId}`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Transactions
+  // -----------------------------------------------------------------
+
+  'list-transactions': handler('list-transactions', async (request) => {
+    const qs = queryString({
+      customer_id: core.getInput('customer-id') || '',
+      autoramp_id: core.getInput('autoramp-id') || '',
+      limit: core.getInput('limit') || '',
+      offset: core.getInput('offset') || '',
+      status: core.getInput('status') || '',
+    })
+    return request('GET', `/autoramp-transactions${qs}`)
+  }),
+
+  'get-transactions-by-ids': handler('get-transactions-by-ids', async (request) => {
+    const transactionIds = core.getInput('transaction-ids') || ''
+    if (!transactionIds) throw new Error('transaction-ids is required')
+    const qs = queryString({ ids: transactionIds })
+    return request('GET', `/autoramp-transactions/ids${qs}`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Customers
+  // -----------------------------------------------------------------
+
+  'create-customer': handler('create-customer', async (request) => {
+    return request('POST', '/customers', parseBody())
+  }),
+
+  'get-customer': handler('get-customer', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}`)
+  }),
+
+  'get-customer-by-external-id': handler('get-customer-by-external-id', async (request) => {
+    const externalId = core.getInput('external-id') || ''
+    if (!externalId) throw new Error('external-id is required')
+    return request('GET', `/customers/${externalId}/external`)
+  }),
+
+  'update-customer': handler('update-customer', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('PUT', `/customers/${customerId}`, parseBody())
+  }),
+
+  'list-customers': handler('list-customers', async (request) => {
+    const qs = queryString({
+      limit: core.getInput('limit') || '',
+      offset: core.getInput('offset') || '',
+    })
+    return request('GET', `/customers${qs}`)
+  }),
+
+  'get-customer-abilities': handler('get-customer-abilities', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}/abilities`)
+  }),
+
+  // -----------------------------------------------------------------
+  // KYC / Identifications
+  // -----------------------------------------------------------------
+
+  'create-identification': handler('create-identification', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    const body = core.getInput('body') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request(
+      'POST',
+      `/customers/${customerId}/identifications/v2`,
+      body ? JSON.parse(body) : {},
+    )
+  }),
+
+  'get-identification': handler('get-identification', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required (identification ID)')
+    return request('GET', `/identifications/${addressId}`)
+  }),
+
+  'list-identifications': handler('list-identifications', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}/identifications`)
+  }),
+
+  'get-compliance-questionnaire': handler('get-compliance-questionnaire', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required (identification ID)')
+    return request('GET', `/identifications/${addressId}/compliance-questionnaire`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Signings
+  // -----------------------------------------------------------------
+
+  'create-signing': handler('create-signing', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('POST', `/customers/${customerId}/signings`, parseBody())
+  }),
+
+  'list-signings': handler('list-signings', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}/signings`)
+  }),
+
+  'get-required-signings': handler('get-required-signings', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}/required-signings`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Crypto Addresses
+  // -----------------------------------------------------------------
+
+  'register-hosted-wallet': handler('register-hosted-wallet', async (request) => {
+    return request('POST', '/addresses/crypto/hosted', parseBody())
+  }),
+
+  'register-selfhosted-wallet': handler('register-selfhosted-wallet', async (request) => {
+    return request('POST', '/addresses/crypto/selfhosted', parseBody())
+  }),
+
+  'list-crypto-addresses': handler('list-crypto-addresses', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/addresses/crypto/${customerId}`)
+  }),
+
+  'disable-crypto-address': handler('disable-crypto-address', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required')
+    return request('PUT', `/addresses/crypto/${addressId}/disabled`, parseBody())
+  }),
+
+  'search-vasps': handler('search-vasps', async (request) => {
+    const qs = queryString({ query: core.getInput('vasp-query') || '' })
+    return request('GET', `/addresses/crypto/hosted/vasps${qs}`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Fiat Addresses (Bank Accounts)
+  // -----------------------------------------------------------------
+
+  'register-bank-account': handler('register-bank-account', async (request) => {
+    return request('POST', '/addresses/fiat', parseBody())
+  }),
+
+  'list-bank-accounts': handler('list-bank-accounts', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (customerId) {
+      return request('GET', `/addresses/fiat/${customerId}`)
+    }
+    const qs = queryString({
+      limit: core.getInput('limit') || '',
+      offset: core.getInput('offset') || '',
+      status: core.getInput('status') || '',
+    })
+    return request('GET', `/addresses/fiat${qs}`)
+  }),
+
+  'get-bank-account': handler('get-bank-account', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    const addressId = core.getInput('address-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    if (!addressId) throw new Error('address-id is required')
+    return request('GET', `/addresses/fiat/${customerId}/${addressId}`)
+  }),
+
+  'delete-bank-account': handler('delete-bank-account', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    const addressId = core.getInput('address-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    if (!addressId) throw new Error('address-id is required')
+    return request('DELETE', `/addresses/fiat/${customerId}/${addressId}`)
+  }),
+
+  'retry-bank-auth': handler('retry-bank-auth', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required')
+    return request('POST', `/addresses/fiat/${addressId}/retry-auth`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Authentication Codes
+  // -----------------------------------------------------------------
+
+  'get-auth-code': handler('get-auth-code', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required (entity ID)')
+    return request('GET', `/authentication-codes/entity/${addressId}`)
+  }),
+
+  'submit-auth-code': handler('submit-auth-code', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    if (!addressId) throw new Error('address-id is required (auth code ID)')
+    return request('PUT', `/authentication-codes/${addressId}`, parseBody())
+  }),
+
+  // -----------------------------------------------------------------
+  // Microdeposits
+  // -----------------------------------------------------------------
+
+  'get-microdeposits': handler('get-microdeposits', async (request) => {
+    const customerId = core.getInput('customer-id') || ''
+    if (!customerId) throw new Error('customer-id is required')
+    return request('GET', `/customers/${customerId}/microdeposits`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Reference Data
+  // -----------------------------------------------------------------
+
+  'list-cryptocurrencies': handler('list-cryptocurrencies', async (request) => {
+    return request('GET', '/cryptocurrencies')
+  }),
+
+  'list-fiat-currencies': handler('list-fiat-currencies', async (request) => {
+    return request('GET', '/fiatcurrencies')
+  }),
+
+  'get-exchange-rate': handler('get-exchange-rate', async (request) => {
+    const sourceCurrency = core.getInput('source-currency') || ''
+    const destinationCurrency = core.getInput('destination-currency') || ''
+    const baseCurrency = core.getInput('base-currency') || ''
+    const quoteCurrency = core.getInput('quote-currency') || ''
+    const sourceChain = core.getInput('source-chain') || ''
+    const destinationChain = core.getInput('destination-chain') || ''
+    const sourceAmount = core.getInput('source-amount') || ''
+
+    const src = sourceCurrency || baseCurrency
+    const dst = destinationCurrency || quoteCurrency
+    const fiatCodes = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY', 'HKD', 'SGD']
+    const srcType = fiatCodes.includes(src.toUpperCase()) ? 'fiat' : 'crypto'
+    const dstType = fiatCodes.includes(dst.toUpperCase()) ? 'fiat' : 'crypto'
+    const qs = queryString({
+      source_currency_code: src,
+      source_currency_type: srcType,
+      destination_currency_code: dst,
+      destination_currency_type: dstType,
+      source_currency_chain: srcType === 'crypto' ? (sourceChain || 'Ethereum') : '',
+      destination_currency_chain: dstType === 'crypto' ? (destinationChain || 'Ethereum') : '',
+      amount: sourceAmount,
+    })
+    return request('GET', `/exchange-rate${qs}`)
+  }),
+
+  'get-fee-profiles': handler('get-fee-profiles', async (request) => {
+    return request('GET', '/fee-profiles')
+  }),
+
+  'get-terms': handler('get-terms', async (request) => {
+    const qs = queryString({ country: core.getInput('country-code') || '' })
+    return request('GET', `/terms-and-conditions${qs}`)
+  }),
+
+  'get-country-subdivisions': handler('get-country-subdivisions', async (request) => {
+    const countryCode = core.getInput('country-code') || ''
+    if (!countryCode) throw new Error('country-code is required')
+    return request('GET', `/country_subdivisions/${countryCode}`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Webhooks
+  // -----------------------------------------------------------------
+
+  'list-webhooks': handler('list-webhooks', async (request) => {
+    return request('GET', '/webhooks')
+  }),
+
+  'update-webhook': handler('update-webhook', async (request) => {
+    const webhookId = core.getInput('webhook-id') || ''
+    if (!webhookId) throw new Error('webhook-id is required')
+    return request('PATCH', `/webhooks/${webhookId}`, parseBody())
+  }),
+
+  'ping-webhook': handler('ping-webhook', async (request) => {
+    const webhookId = core.getInput('webhook-id') || ''
+    if (!webhookId) throw new Error('webhook-id is required')
+    return request('POST', `/webhooks/${webhookId}/ping`)
+  }),
+
+  // -----------------------------------------------------------------
+  // Sandbox
+  // -----------------------------------------------------------------
+
+  'sandbox-reset': handler('sandbox-reset', async (request) => {
+    return request('POST', '/sandbox/reset')
+  }),
+
+  'sandbox-mock-transaction': handler('sandbox-mock-transaction', async (request) => {
+    return request('POST', '/sandbox/transaction', parseBody())
+  }),
+
+  'sandbox-update-autoramp': handler('sandbox-update-autoramp', async (request) => {
+    const autorampId = core.getInput('autoramp-id') || ''
+    const sandboxStatus = core.getInput('sandbox-status') || ''
+    if (!autorampId) throw new Error('autoramp-id is required')
+    return request(
+      'PUT',
+      `/sandbox/autoramp/${autorampId}`,
+      { status: sandboxStatus || parseBody().status },
+    )
+  }),
+
+  'sandbox-update-fiat-verification': handler('sandbox-update-fiat-verification', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    const sandboxStatus = core.getInput('sandbox-status') || ''
+    if (!addressId) throw new Error('address-id is required')
+    return request(
+      'PUT',
+      `/sandbox/fiat-verification/${addressId}`,
+      { status: sandboxStatus || parseBody().status },
+    )
+  }),
+
+  'sandbox-update-identification': handler('sandbox-update-identification', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    const sandboxStatus = core.getInput('sandbox-status') || ''
+    if (!addressId) throw new Error('address-id is required (identification ID)')
+    return request(
+      'POST',
+      `/sandbox/identification/${addressId}`,
+      { status: sandboxStatus || parseBody().status },
+    )
+  }),
+
+  'sandbox-update-transaction': handler('sandbox-update-transaction', async (request) => {
+    const addressId = core.getInput('address-id') || ''
+    const sandboxStatus = core.getInput('sandbox-status') || ''
+    if (!addressId) throw new Error('address-id is required (transaction ID)')
+    return request(
+      'PUT',
+      `/sandbox/transaction/${addressId}/state`,
+      { state: sandboxStatus || parseBody().state },
+    )
+  }),
+})
+
+router()
