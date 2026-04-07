@@ -28033,11 +28033,26 @@ function buildHeaders(apiKey, command) {
 function makeRequest(apiUrl, headers) {
   return async function request(method, path, bodyObj) {
     const url = `${apiUrl}${path}`
-    const opts = { method, headers }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 30_000)
+    const opts = { method, headers, signal: controller.signal }
     if (bodyObj && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
       opts.body = JSON.stringify(bodyObj)
     }
-    const res = await fetch(url, opts)
+    let res
+    try {
+      res = await fetch(url, opts)
+    } catch (err) {
+      clearTimeout(timer)
+      if (err.name === 'AbortError') {
+        throw new error_W3ActionError('TIMEOUT', `${method} ${path} timed out after 30s`)
+      }
+      throw new error_W3ActionError('REQUEST_FAILED', `${method} ${path}: ${err.message}`)
+    }
+    clearTimeout(timer)
+    if (res.status === 204) {
+      return null
+    }
     const text = await res.text()
     let data
     try {
@@ -28047,7 +28062,10 @@ function makeRequest(apiUrl, headers) {
     }
     if (!res.ok) {
       const msg = typeof data === 'object' ? JSON.stringify(data) : data
-      throw new Error(`${method} ${path} returned ${res.status}: ${msg}`)
+      throw new error_W3ActionError('HTTP_ERROR', `${method} ${path} returned ${res.status}: ${msg}`, {
+        statusCode: res.status,
+        details: typeof data === 'object' ? data : undefined,
+      })
     }
     return data
   }
@@ -28063,7 +28081,7 @@ function queryString(params) {
 
 function parseBody() {
   const body = lib_core.getInput('body') || ''
-  if (!body) throw new Error('body input is required for this command')
+  if (!body) throw new error_W3ActionError('MISSING_INPUT','body input is required for this command')
   return JSON.parse(body)
 }
 
@@ -28096,13 +28114,13 @@ const router = createCommandRouter({
 
   'get-autoramp': handler('get-autoramp', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request('GET', `/autoramps/${autorampId}`)
   }),
 
   'get-autoramp-by-external-id': handler('get-autoramp-by-external-id', async (request) => {
     const externalId = lib_core.getInput('external-id') || ''
-    if (!externalId) throw new Error('external-id is required')
+    if (!externalId) throw new error_W3ActionError('MISSING_INPUT','external-id is required')
     return request('GET', `/autoramps/${externalId}/external`)
   }),
 
@@ -28118,13 +28136,13 @@ const router = createCommandRouter({
 
   'cancel-autoramp': handler('cancel-autoramp', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request('DELETE', `/autoramps/${autorampId}`)
   }),
 
   'patch-autoramp': handler('patch-autoramp', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request('PATCH', `/autoramps/${autorampId}`, parseBody())
   }),
 
@@ -28147,14 +28165,14 @@ const router = createCommandRouter({
 
   'retry-autoramp-auth': handler('retry-autoramp-auth', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request('POST', `/autoramps/${autorampId}/retry-auth`)
   }),
 
   'create-open-banking-payment': handler('create-open-banking-payment', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
     const body = lib_core.getInput('body') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request(
       'POST',
       `/autoramps/${autorampId}/payments/open-banking`,
@@ -28164,7 +28182,7 @@ const router = createCommandRouter({
 
   'get-open-banking-payment': handler('get-open-banking-payment', async (request) => {
     const paymentId = lib_core.getInput('payment-id') || ''
-    if (!paymentId) throw new Error('payment-id is required')
+    if (!paymentId) throw new error_W3ActionError('MISSING_INPUT','payment-id is required')
     return request('GET', `/autoramps/payments/open-banking/${paymentId}`)
   }),
 
@@ -28185,7 +28203,7 @@ const router = createCommandRouter({
 
   'get-transactions-by-ids': handler('get-transactions-by-ids', async (request) => {
     const transactionIds = lib_core.getInput('transaction-ids') || ''
-    if (!transactionIds) throw new Error('transaction-ids is required')
+    if (!transactionIds) throw new error_W3ActionError('MISSING_INPUT','transaction-ids is required')
     const qs = queryString({ ids: transactionIds })
     return request('GET', `/autoramp-transactions/ids${qs}`)
   }),
@@ -28200,19 +28218,19 @@ const router = createCommandRouter({
 
   'get-customer': handler('get-customer', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}`)
   }),
 
   'get-customer-by-external-id': handler('get-customer-by-external-id', async (request) => {
     const externalId = lib_core.getInput('external-id') || ''
-    if (!externalId) throw new Error('external-id is required')
+    if (!externalId) throw new error_W3ActionError('MISSING_INPUT','external-id is required')
     return request('GET', `/customers/${externalId}/external`)
   }),
 
   'update-customer': handler('update-customer', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('PUT', `/customers/${customerId}`, parseBody())
   }),
 
@@ -28226,7 +28244,7 @@ const router = createCommandRouter({
 
   'get-customer-abilities': handler('get-customer-abilities', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}/abilities`)
   }),
 
@@ -28237,7 +28255,7 @@ const router = createCommandRouter({
   'create-identification': handler('create-identification', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
     const body = lib_core.getInput('body') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request(
       'POST',
       `/customers/${customerId}/identifications/v2`,
@@ -28247,19 +28265,19 @@ const router = createCommandRouter({
 
   'get-identification': handler('get-identification', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required (identification ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
     return request('GET', `/identifications/${addressId}`)
   }),
 
   'list-identifications': handler('list-identifications', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}/identifications`)
   }),
 
   'get-compliance-questionnaire': handler('get-compliance-questionnaire', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required (identification ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
     return request('GET', `/identifications/${addressId}/compliance-questionnaire`)
   }),
 
@@ -28269,19 +28287,19 @@ const router = createCommandRouter({
 
   'create-signing': handler('create-signing', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('POST', `/customers/${customerId}/signings`, parseBody())
   }),
 
   'list-signings': handler('list-signings', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}/signings`)
   }),
 
   'get-required-signings': handler('get-required-signings', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}/required-signings`)
   }),
 
@@ -28299,13 +28317,13 @@ const router = createCommandRouter({
 
   'list-crypto-addresses': handler('list-crypto-addresses', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/addresses/crypto/${customerId}`)
   }),
 
   'disable-crypto-address': handler('disable-crypto-address', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
     return request('PUT', `/addresses/crypto/${addressId}/disabled`, parseBody())
   }),
 
@@ -28338,22 +28356,22 @@ const router = createCommandRouter({
   'get-bank-account': handler('get-bank-account', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
     const addressId = lib_core.getInput('address-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
-    if (!addressId) throw new Error('address-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
     return request('GET', `/addresses/fiat/${customerId}/${addressId}`)
   }),
 
   'delete-bank-account': handler('delete-bank-account', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
     const addressId = lib_core.getInput('address-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
-    if (!addressId) throw new Error('address-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
     return request('DELETE', `/addresses/fiat/${customerId}/${addressId}`)
   }),
 
   'retry-bank-auth': handler('retry-bank-auth', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
     return request('POST', `/addresses/fiat/${addressId}/retry-auth`)
   }),
 
@@ -28363,13 +28381,13 @@ const router = createCommandRouter({
 
   'get-auth-code': handler('get-auth-code', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required (entity ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (entity ID)')
     return request('GET', `/authentication-codes/entity/${addressId}`)
   }),
 
   'submit-auth-code': handler('submit-auth-code', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new Error('address-id is required (auth code ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (auth code ID)')
     return request('PUT', `/authentication-codes/${addressId}`, parseBody())
   }),
 
@@ -28379,7 +28397,7 @@ const router = createCommandRouter({
 
   'get-microdeposits': handler('get-microdeposits', async (request) => {
     const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new Error('customer-id is required')
+    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
     return request('GET', `/customers/${customerId}/microdeposits`)
   }),
 
@@ -28432,7 +28450,7 @@ const router = createCommandRouter({
 
   'get-country-subdivisions': handler('get-country-subdivisions', async (request) => {
     const countryCode = lib_core.getInput('country-code') || ''
-    if (!countryCode) throw new Error('country-code is required')
+    if (!countryCode) throw new error_W3ActionError('MISSING_INPUT','country-code is required')
     return request('GET', `/country_subdivisions/${countryCode}`)
   }),
 
@@ -28446,13 +28464,13 @@ const router = createCommandRouter({
 
   'update-webhook': handler('update-webhook', async (request) => {
     const webhookId = lib_core.getInput('webhook-id') || ''
-    if (!webhookId) throw new Error('webhook-id is required')
+    if (!webhookId) throw new error_W3ActionError('MISSING_INPUT','webhook-id is required')
     return request('PATCH', `/webhooks/${webhookId}`, parseBody())
   }),
 
   'ping-webhook': handler('ping-webhook', async (request) => {
     const webhookId = lib_core.getInput('webhook-id') || ''
-    if (!webhookId) throw new Error('webhook-id is required')
+    if (!webhookId) throw new error_W3ActionError('MISSING_INPUT','webhook-id is required')
     return request('POST', `/webhooks/${webhookId}/ping`)
   }),
 
@@ -28471,7 +28489,7 @@ const router = createCommandRouter({
   'sandbox-update-autoramp': handler('sandbox-update-autoramp', async (request) => {
     const autorampId = lib_core.getInput('autoramp-id') || ''
     const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!autorampId) throw new Error('autoramp-id is required')
+    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
     return request(
       'PUT',
       `/sandbox/autoramp/${autorampId}`,
@@ -28482,7 +28500,7 @@ const router = createCommandRouter({
   'sandbox-update-fiat-verification': handler('sandbox-update-fiat-verification', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
     const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new Error('address-id is required')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
     return request(
       'PUT',
       `/sandbox/fiat-verification/${addressId}`,
@@ -28493,7 +28511,7 @@ const router = createCommandRouter({
   'sandbox-update-identification': handler('sandbox-update-identification', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
     const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new Error('address-id is required (identification ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
     return request(
       'POST',
       `/sandbox/identification/${addressId}`,
@@ -28504,7 +28522,7 @@ const router = createCommandRouter({
   'sandbox-update-transaction': handler('sandbox-update-transaction', async (request) => {
     const addressId = lib_core.getInput('address-id') || ''
     const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new Error('address-id is required (transaction ID)')
+    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (transaction ID)')
     return request(
       'PUT',
       `/sandbox/transaction/${addressId}/state`,
