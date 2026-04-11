@@ -27495,36 +27495,26 @@ var lib_core = __nccwpck_require__(7484);
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/input.js
 
 /**
- * Parse a JSON input. Returns the parsed value or undefined if empty.
- * Throws with a clear message if the input contains invalid JSON.
+ * Read an input and parse it as JSON. Returns the parsed value.
+ * Throws if the input is missing (when required) or not valid JSON.
  */
-function parseJsonInput(name) {
-    const raw = core.getInput(name);
-    if (!raw.trim())
+function parseJsonInput(name, options) {
+    const raw = core.getInput(name, options);
+    if (!raw)
         return undefined;
-    try {
-        return JSON.parse(raw);
-    }
-    catch {
-        throw new Error(`Input '${name}' is not valid JSON: ${raw.slice(0, 100)}`);
-    }
+    return JSON.parse(raw);
 }
 /**
- * Get a required input. Throws if missing or empty.
+ * Read a required input. Throws if missing.
  */
 function requireInput(name) {
-    const value = core.getInput(name);
-    if (!value.trim()) {
-        throw new Error(`Required input '${name}' is missing`);
-    }
-    return value;
+    return core.getInput(name, { required: true });
 }
 /**
- * Get an optional input with a default value.
+ * Read an optional input. Returns undefined if empty.
  */
-function getOptionalInput(name, defaultValue = "") {
-    const value = core.getInput(name);
-    return value.trim() || defaultValue;
+function getOptionalInput(name) {
+    return core.getInput(name) || undefined;
 }
 
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/output.js
@@ -27544,7 +27534,9 @@ function setJsonOutput(name, value) {
  */
 function setOutputs(outputs) {
     for (const [key, value] of Object.entries(outputs)) {
-        setJsonOutput(key, value);
+        if (value != null) {
+            setJsonOutput(key, value);
+        }
     }
 }
 
@@ -27589,82 +27581,35 @@ function handleError(error) {
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/http.js
 
 /**
- * Make an HTTP request with timeout, retry, and structured errors.
+ * Make an HTTP request with JSON body. Returns parsed JSON response.
  *
- * - Retries on 429 and 5xx with exponential backoff
- * - Parses JSON response automatically
- * - Throws W3ActionError with status code on failure
+ * For partner API clients that don't need the bridge.
  */
 async function request(url, options = {}) {
-    const { method = "GET", headers = {}, body, timeout = 30000, retries = 2, retryDelay = 1000, } = options;
-    const init = {
-        method,
-        headers: {
-            "Content-Type": "application/json",
-            ...headers,
-        },
-        signal: AbortSignal.timeout(timeout),
-    };
-    if (body !== undefined) {
-        init.body = typeof body === "string" ? body : JSON.stringify(body);
-    }
-    let lastError;
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            const res = await fetch(url, init);
-            const raw = await res.text();
-            let parsed;
-            try {
-                parsed = JSON.parse(raw);
-            }
-            catch {
-                parsed = raw;
-            }
-            const responseHeaders = {};
-            res.headers.forEach((v, k) => {
-                responseHeaders[k] = v;
+    const { method = "GET", headers = {}, body, timeout = 30000 } = options;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                ...headers,
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+        });
+        if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            throw new W3ActionError("HTTP_ERROR", `${response.status}: ${text}`, {
+                statusCode: response.status,
             });
-            if (!res.ok) {
-                // Retry on 429 (rate limit) and 5xx (server error)
-                if ((res.status === 429 || res.status >= 500) &&
-                    attempt < retries) {
-                    await sleep(retryDelay * 2 ** attempt);
-                    continue;
-                }
-                throw new W3ActionError("HTTP_ERROR", `${method} ${url}: ${res.status}`, {
-                    statusCode: res.status,
-                    details: parsed,
-                });
-            }
-            return { status: res.status, headers: responseHeaders, body: parsed, raw };
         }
-        catch (error) {
-            if (error instanceof W3ActionError)
-                throw error;
-            lastError = error instanceof Error ? error : new Error(String(error));
-            if (attempt < retries) {
-                await sleep(retryDelay * 2 ** attempt);
-                continue;
-            }
-        }
+        return (await response.json());
     }
-    throw new W3ActionError("REQUEST_FAILED", `${method} ${url}: ${lastError?.message ?? "unknown error"}`);
-}
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-/**
- * Convenience: add API key auth header.
- */
-function apiKeyAuth(key, headerName = "Authorization", prefix = "Bearer") {
-    return { [headerName]: `${prefix} ${key}` };
-}
-/**
- * Convenience: add basic auth header.
- */
-function basicAuth(username, password) {
-    const encoded = Buffer.from(`${username}:${password}`).toString("base64");
-    return { Authorization: `Basic ${encoded}` };
+    finally {
+        clearTimeout(timer);
+    }
 }
 
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/command.js
@@ -27708,8 +27653,17 @@ function createCommandRouter(commands) {
  *   - $W3_BRIDGE_URL    → TCP URL (macOS Docker Desktop fallback)
  *
  * Usage:
- *   import { bridge } from "@w3-io/action-core";
+ *   import { bridge, ethereum } from "@w3-io/action-core";
  *
+ *   // Typed helpers (recommended — autocomplete + type checking):
+ *   const receipt = await ethereum.callContract({
+ *     contract: "0x...",
+ *     method: "deposit(uint256)",
+ *     args: ["1000000"],
+ *     gasMultiplier: "1.5",
+ *   });
+ *
+ *   // Generic (full control):
  *   const balance = await bridge.chain("ethereum", "get-balance", {
  *     address: "0x...",
  *   });
@@ -27720,29 +27674,17 @@ function createCommandRouter(commands) {
 // ---------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------
-/**
- * Resolve the bridge endpoint from environment variables.
- *
- * Returns a fetch-compatible URL and optional Unix socket path.
- */
 function resolveEndpoint() {
     const bridgeUrl = process.env.W3_BRIDGE_URL;
     if (bridgeUrl) {
         return { url: bridgeUrl };
     }
     const socketPath = process.env.W3_BRIDGE_SOCKET ?? "/var/run/w3/bridge.sock";
-    // Node's fetch doesn't support Unix sockets natively.
-    // We use http.request for Unix socket transport.
     return { url: "http://localhost", socketPath };
 }
-/**
- * Make an HTTP request to the bridge. Handles both TCP and Unix socket
- * transports transparently.
- */
 async function bridgeRequest(path, body) {
     const { url, socketPath } = resolveEndpoint();
     if (socketPath) {
-        // Unix socket transport via Node's http module
         const http = await Promise.resolve(/* import() */).then(__nccwpck_require__.t.bind(__nccwpck_require__, 7067, 19));
         return new Promise((resolve, reject) => {
             const payload = body ? JSON.stringify(body) : undefined;
@@ -27752,7 +27694,9 @@ async function bridgeRequest(path, body) {
                 method: body ? "POST" : "GET",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
+                    ...(payload
+                        ? { "Content-Length": Buffer.byteLength(payload) }
+                        : {}),
                 },
             }, (res) => {
                 let data = "";
@@ -27764,15 +27708,12 @@ async function bridgeRequest(path, body) {
                             reject(new error_W3ActionError(err.code ?? "BRIDGE_ERROR", err.error ?? `Bridge returned ${res.statusCode}`, { statusCode: res.statusCode, details: err }));
                         }
                         catch {
-                            reject(new error_W3ActionError("BRIDGE_ERROR", data || `HTTP ${res.statusCode}`, {
-                                statusCode: res.statusCode,
-                            }));
+                            reject(new error_W3ActionError("BRIDGE_ERROR", data || `HTTP ${res.statusCode}`, { statusCode: res.statusCode }));
                         }
                         return;
                     }
                     try {
-                        const parsed = JSON.parse(data);
-                        resolve(parsed);
+                        resolve(JSON.parse(data));
                     }
                     catch {
                         resolve(data);
@@ -27811,9 +27752,19 @@ async function bridgeRequest(path, body) {
         return text;
     }
 }
-/**
- * Check if the bridge is available.
- */
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function chainRequest(chainName, action, params, network) {
+    return bridgeRequest(`/${chainName}/${action}`, {
+        network: network ?? chainName,
+        params,
+    });
+}
+// ---------------------------------------------------------------------------
+// Public API — generic
+// ---------------------------------------------------------------------------
 async function health() {
     try {
         const res = (await bridgeRequest("/health"));
@@ -27824,42 +27775,83 @@ async function health() {
     }
 }
 /**
- * Call a chain operation via the bridge.
+ * Execute a chain operation.
  *
- * @param chain - "ethereum", "bitcoin", or "solana"
- * @param action - Operation name (e.g. "get-balance", "transfer", "call-contract")
- * @param params - Action-specific parameters
- * @param network - Network identifier (e.g. "ethereum-sepolia", "avalanche-fuji")
+ * For type-safe calls, use the typed helpers (`ethereum`, `solana`,
+ * `bitcoin`) instead. This generic method accepts any params.
  */
 async function chain(chainName, action, params, network) {
-    return (await bridgeRequest(`/${chainName}/${action}`, {
-        network: network ?? chainName,
-        params,
-    }));
+    return chainRequest(chainName, action, params, network);
 }
-/**
- * Call a crypto operation via the bridge.
- *
- * @param action - Operation name (e.g. "keccak-256", "aes-encrypt", "jwt-create")
- * @param params - Operation-specific parameters
- */
 async function bridge_crypto(action, params) {
     return (await bridgeRequest(`/crypto/${action}`, {
         params,
     }));
 }
+// ---------------------------------------------------------------------------
+// Public API — typed chain helpers
+// ---------------------------------------------------------------------------
+/** Typed Ethereum operations. */
+const ethereum = {
+    getBalance: (params, network) => chainRequest("ethereum", "get-balance", params, network),
+    readContract: (params, network) => chainRequest("ethereum", "read-contract", params, network),
+    callContract: (params, network) => chainRequest("ethereum", "call-contract", params, network),
+    transfer: (params, network) => chainRequest("ethereum", "transfer", params, network),
+    sendTransaction: (params, network) => chainRequest("ethereum", "send-transaction", params, network),
+    deployContract: (params, network) => chainRequest("ethereum", "deploy-contract", params, network),
+    transferToken: (params, network) => chainRequest("ethereum", "transfer-token", params, network),
+    approveToken: (params, network) => chainRequest("ethereum", "approve-token", params, network),
+    transferNft: (params, network) => chainRequest("ethereum", "transfer-nft", params, network),
+    getTransaction: (params, network) => chainRequest("ethereum", "get-transaction", params, network),
+    waitForTransaction: (params, network) => chainRequest("ethereum", "wait-for-transaction", params, network),
+    getEvents: (params, network) => chainRequest("ethereum", "get-events", params, network),
+    resolveName: (params, network) => chainRequest("ethereum", "resolve-name", params, network),
+    getTokenBalance: (params, network) => chainRequest("ethereum", "get-token-balance", params, network),
+    getTokenAllowance: (params, network) => chainRequest("ethereum", "get-token-allowance", params, network),
+    getNftOwner: (params, network) => chainRequest("ethereum", "get-nft-owner", params, network),
+    getNftMetadata: (params, network) => chainRequest("ethereum", "get-nft-metadata", params, network),
+};
+/** Typed Solana operations. */
+const solana = {
+    getBalance: (params, network) => chainRequest("solana", "get-balance", params, network),
+    transfer: (params, network) => chainRequest("solana", "transfer", params, network),
+    transferToken: (params, network) => chainRequest("solana", "transfer-token", params, network),
+    callProgram: (params, network) => chainRequest("solana", "call-program", params, network),
+    getAccount: (params, network) => chainRequest("solana", "get-account", params, network),
+    getTokenBalance: (params, network) => chainRequest("solana", "get-token-balance", params, network),
+    getTokenAccounts: (params, network) => chainRequest("solana", "get-token-accounts", params, network),
+    getTransaction: (params, network) => chainRequest("solana", "get-transaction", params, network),
+    waitForTransaction: (params, network) => chainRequest("solana", "wait-for-transaction", params, network),
+    /** Generate an ephemeral keypair for use as an additional signer. */
+    generateKeypair: () => bridgeRequest("/solana/generate-keypair", {}),
+    /** Get the payer's public key (no secret exposed). */
+    payerAddress: () => bridgeRequest("/solana/payer-address"),
+};
+/** Typed Bitcoin operations. */
+const bitcoin = {
+    getBalance: (params, network) => chainRequest("bitcoin", "get-balance", params, network),
+    send: (params, network) => chainRequest("bitcoin", "send", params, network),
+    getUtxos: (params, network) => chainRequest("bitcoin", "get-utxos", params, network),
+    getTransaction: (params, network) => chainRequest("bitcoin", "get-transaction", params, network),
+    getFeeRate: (params, network) => chainRequest("bitcoin", "get-fee-rate", params ?? {}, network),
+    waitForTransaction: (params, network) => chainRequest("bitcoin", "wait-for-transaction", params, network),
+};
+// ---------------------------------------------------------------------------
+// Default export
+// ---------------------------------------------------------------------------
 /**
- * The bridge client. Import and use:
+ * The bridge client.
  *
- *   import { bridge } from "@w3-io/action-core";
+ *   import { bridge, ethereum, solana, bitcoin } from "@w3-io/action-core";
  *
- *   // Chain operations
+ *   // Typed (recommended):
+ *   const receipt = await ethereum.callContract({ contract, method, args });
+ *   const sig = await solana.callProgram({ programId, accounts, data });
+ *   const tx = await bitcoin.send({ to, amount });
+ *
+ *   // Generic:
  *   const bal = await bridge.chain("ethereum", "get-balance", { address });
- *
- *   // Crypto
  *   const hash = await bridge.crypto("keccak-256", { data: "0x..." });
- *
- *   // Health check
  *   const ok = await bridge.health();
  */
 const bridge = {
@@ -27868,48 +27860,69 @@ const bridge = {
     crypto: bridge_crypto,
 };
 
+;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/summary.js
+
+/**
+ * Write a job summary safely.
+ *
+ * Wraps `@actions/core` summary with proper `await` and error handling.
+ * The W3 runner sets GITHUB_STEP_SUMMARY and mounts a writable file,
+ * so this works on both GitHub Actions and W3. If the summary file is
+ * unavailable (local dev, CI without summary support), the write is
+ * silently skipped.
+ *
+ * Usage:
+ *   await writeSummary("My Action: deposit", [
+ *     ["Amount", "1000 USDC"],
+ *     ["TX", "`0xabc...`"],
+ *   ]);
+ *
+ *   await writeSummary("My Action: query", result);
+ */
+async function writeSummary(heading, content) {
+    try {
+        core.summary.addHeading(heading, 3);
+        if (typeof content === "string") {
+            core.summary.addRaw(content);
+        }
+        else if (Array.isArray(content)) {
+            // Key-value pairs rendered as markdown
+            for (const [key, value] of content) {
+                core.summary.addRaw(`**${key}:** ${value}\n\n`);
+            }
+        }
+        else {
+            core.summary.addCodeBlock(JSON.stringify(content, null, 2), "json");
+        }
+        await core.summary.write();
+    }
+    catch {
+        // Silently skip — environment may not support job summaries
+    }
+}
+
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/test.js
 /**
  * Test utilities for W3 actions.
  *
  * Mocks @actions/core so you can test command handlers in isolation
  * without running the full GitHub Actions runtime.
- *
- * Usage:
- *   import { mockAction, expectOutput, expectFailed } from "@w3-io/action-core/test";
- *
- *   test("keccak-256 hashes correctly", async () => {
- *     mockAction({ command: "keccak-256", input: "48656c6c6f" });
- *     await import("../src/index.js");
- *     expectOutput("result", (val) => val.includes("hash"));
- *   });
  */
 let _inputs = {};
 let _outputs = new Map();
 let _failed = null;
-/**
- * Set up mock inputs for the next action invocation.
- * Call this before importing/running the action.
- */
 function mockAction(inputs) {
     _inputs = inputs;
     _outputs = new Map();
     _failed = null;
-    // Mock process.env for @actions/core.getInput()
     for (const [key, value] of Object.entries(inputs)) {
         const envKey = `INPUT_${key.replace(/-/g, "_").toUpperCase()}`;
         process.env[envKey] = value;
     }
 }
-/**
- * Get an output that was set during action execution.
- */
 function getOutput(name) {
     return _outputs.get(name);
 }
-/**
- * Assert an output was set and optionally validate its value.
- */
 function expectOutput(name, validator) {
     const value = _outputs.get(name);
     if (value === undefined) {
@@ -27919,9 +27932,6 @@ function expectOutput(name, validator) {
         throw new Error(`Output "${name}" failed validation. Value: ${value}`);
     }
 }
-/**
- * Assert the action failed with a specific message pattern.
- */
 function expectFailed(pattern) {
     if (_failed === null) {
         throw new Error("Expected action to fail, but it succeeded");
@@ -27935,17 +27945,11 @@ function expectFailed(pattern) {
         }
     }
 }
-/**
- * Assert the action succeeded (did not call setFailed).
- */
 function expectSuccess() {
     if (_failed !== null) {
         throw new Error(`Expected action to succeed, but it failed: "${_failed}"`);
     }
 }
-/**
- * Clean up mock environment after tests.
- */
 function cleanupMock() {
     for (const key of Object.keys(process.env)) {
         if (key.startsWith("INPUT_")) {
@@ -27956,14 +27960,8 @@ function cleanupMock() {
     _outputs = new Map();
     _failed = null;
 }
-/**
- * Create a mock @actions/core module that captures outputs and failures.
- *
- * Use this to intercept setOutput/setFailed calls:
- *   const core = createMockCore();
- *   // pass core to your command handler
- */
 function createMockCore() {
+    const noopChain = () => ({ addRaw: noopChain, addHeading: noopChain, addCodeBlock: noopChain, write: async () => { } });
     return {
         getInput: (name, opts) => {
             const value = _inputs[name] ?? "";
@@ -27982,13 +27980,12 @@ function createMockCore() {
         warning: (_msg) => { },
         error: (_msg) => { },
         debug: (_msg) => { },
-        summary: {
-            addHeading: () => ({ addRaw: () => ({ write: async () => { } }) }),
-        },
+        summary: { addHeading: noopChain, addRaw: noopChain, addCodeBlock: noopChain, write: async () => { } },
     };
 }
 
 ;// CONCATENATED MODULE: ./node_modules/@w3-io/action-core/dist/index.js
+
 
 
 
@@ -28004,103 +28001,120 @@ function createMockCore() {
 // -- Shared helpers -----------------------------------------------------------
 
 function getApiUrl() {
-  const raw = lib_core.getInput('api-url') || 'https://api.iron.xyz'
-  return raw.endsWith('/api') ? raw : `${raw.replace(/\/+$/, '')}/api`
+  const raw = lib_core.getInput("api-url") || "https://api.iron.xyz";
+  return raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
 }
 
 function buildHeaders(apiKey, command) {
-  const idempotencyKey = lib_core.getInput('idempotency-key') || ''
+  const idempotencyKey = lib_core.getInput("idempotency-key") || "";
   const headers = {
-    'X-API-Key': apiKey,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  }
+    "X-API-Key": apiKey,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
   if (idempotencyKey) {
-    headers['IDEMPOTENCY-KEY'] = idempotencyKey
+    headers["IDEMPOTENCY-KEY"] = idempotencyKey;
   } else if (
-    command.startsWith('create-') ||
-    command.startsWith('register-') ||
-    command.startsWith('update-') ||
-    command === 'cancel-autoramp' ||
-    command === 'patch-autoramp' ||
-    command.startsWith('sandbox-')
+    command.startsWith("create-") ||
+    command.startsWith("register-") ||
+    command.startsWith("update-") ||
+    command === "cancel-autoramp" ||
+    command === "patch-autoramp" ||
+    command.startsWith("sandbox-")
   ) {
-    headers['IDEMPOTENCY-KEY'] = crypto.randomUUID()
+    headers["IDEMPOTENCY-KEY"] = crypto.randomUUID();
   }
-  return headers
+  return headers;
 }
 
 function makeRequest(apiUrl, headers) {
   return async function request(method, path, bodyObj) {
-    const url = `${apiUrl}${path}`
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 30_000)
-    const opts = { method, headers, signal: controller.signal }
-    if (bodyObj && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-      opts.body = JSON.stringify(bodyObj)
+    const url = `${apiUrl}${path}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    const opts = { method, headers, signal: controller.signal };
+    if (
+      bodyObj &&
+      (method === "POST" || method === "PUT" || method === "PATCH")
+    ) {
+      opts.body = JSON.stringify(bodyObj);
     }
-    let res
+    let res;
     try {
-      res = await fetch(url, opts)
+      res = await fetch(url, opts);
     } catch (err) {
-      clearTimeout(timer)
-      if (err.name === 'AbortError') {
-        throw new error_W3ActionError('TIMEOUT', `${method} ${path} timed out after 30s`)
+      clearTimeout(timer);
+      if (err.name === "AbortError") {
+        throw new error_W3ActionError(
+          "TIMEOUT",
+          `${method} ${path} timed out after 30s`,
+        );
       }
-      throw new error_W3ActionError('REQUEST_FAILED', `${method} ${path}: ${err.message}`)
+      throw new error_W3ActionError(
+        "REQUEST_FAILED",
+        `${method} ${path}: ${err.message}`,
+      );
     }
-    clearTimeout(timer)
+    clearTimeout(timer);
     if (res.status === 204) {
-      return null
+      return null;
     }
-    const text = await res.text()
-    let data
+    const text = await res.text();
+    let data;
     try {
-      data = JSON.parse(text)
+      data = JSON.parse(text);
     } catch {
-      data = text
+      data = text;
     }
     if (!res.ok) {
-      const msg = typeof data === 'object' ? JSON.stringify(data) : data
-      throw new error_W3ActionError('HTTP_ERROR', `${method} ${path} returned ${res.status}: ${msg}`, {
-        statusCode: res.status,
-        details: typeof data === 'object' ? data : undefined,
-      })
+      const msg = typeof data === "object" ? JSON.stringify(data) : data;
+      throw new error_W3ActionError(
+        "HTTP_ERROR",
+        `${method} ${path} returned ${res.status}: ${msg}`,
+        {
+          statusCode: res.status,
+          details: typeof data === "object" ? data : undefined,
+        },
+      );
     }
-    return data
-  }
+    return data;
+  };
 }
 
 function queryString(params) {
   const qs = Object.entries(params)
-    .filter(([, v]) => v !== '')
+    .filter(([, v]) => v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join('&')
-  return qs ? `?${qs}` : ''
+    .join("&");
+  return qs ? `?${qs}` : "";
 }
 
 function parseBody() {
-  const body = lib_core.getInput('body') || ''
-  if (!body) throw new error_W3ActionError('MISSING_INPUT','body input is required for this command')
-  return JSON.parse(body)
+  const body = lib_core.getInput("body") || "";
+  if (!body)
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "body input is required for this command",
+    );
+  return JSON.parse(body);
 }
 
 function setup(command) {
-  const apiKey = lib_core.getInput('api-key', { required: true })
-  const apiUrl = getApiUrl()
-  const headers = buildHeaders(apiKey, command)
-  const request = makeRequest(apiUrl, headers)
-  return { request }
+  const apiKey = lib_core.getInput("api-key", { required: true });
+  const apiUrl = getApiUrl();
+  const headers = buildHeaders(apiKey, command);
+  const request = makeRequest(apiUrl, headers);
+  return { request };
 }
 
 // -- Command handlers ---------------------------------------------------------
 
 function handler(command, fn) {
   return async () => {
-    const { request } = setup(command)
-    const result = await fn(request)
-    setJsonOutput('result', result)
-  }
+    const { request } = setup(command);
+    const result = await fn(request);
+    setJsonOutput("result", result);
+  };
 }
 
 const router = createCommandRouter({
@@ -28108,428 +28122,551 @@ const router = createCommandRouter({
   // Autoramps
   // -----------------------------------------------------------------
 
-  'create-autoramp': handler('create-autoramp', async (request) => {
-    return request('POST', '/autoramps', parseBody())
+  "create-autoramp": handler("create-autoramp", async (request) => {
+    return request("POST", "/autoramps", parseBody());
   }),
 
-  'get-autoramp': handler('get-autoramp', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request('GET', `/autoramps/${autorampId}`)
+  "get-autoramp": handler("get-autoramp", async (request) => {
+    const autorampId = lib_core.getInput("autoramp-id") || "";
+    if (!autorampId)
+      throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+    return request("GET", `/autoramps/${autorampId}`);
   }),
 
-  'get-autoramp-by-external-id': handler('get-autoramp-by-external-id', async (request) => {
-    const externalId = lib_core.getInput('external-id') || ''
-    if (!externalId) throw new error_W3ActionError('MISSING_INPUT','external-id is required')
-    return request('GET', `/autoramps/${externalId}/external`)
-  }),
+  "get-autoramp-by-external-id": handler(
+    "get-autoramp-by-external-id",
+    async (request) => {
+      const externalId = lib_core.getInput("external-id") || "";
+      if (!externalId)
+        throw new error_W3ActionError("MISSING_INPUT", "external-id is required");
+      return request("GET", `/autoramps/${externalId}/external`);
+    },
+  ),
 
-  'list-autoramps': handler('list-autoramps', async (request) => {
+  "list-autoramps": handler("list-autoramps", async (request) => {
     const qs = queryString({
-      customer_id: lib_core.getInput('customer-id') || '',
-      limit: lib_core.getInput('limit') || '',
-      offset: lib_core.getInput('offset') || '',
-      status: lib_core.getInput('status') || '',
-    })
-    return request('GET', `/autoramps${qs}`)
+      customer_id: lib_core.getInput("customer-id") || "",
+      limit: lib_core.getInput("limit") || "",
+      offset: lib_core.getInput("offset") || "",
+      status: lib_core.getInput("status") || "",
+    });
+    return request("GET", `/autoramps${qs}`);
   }),
 
-  'cancel-autoramp': handler('cancel-autoramp', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request('DELETE', `/autoramps/${autorampId}`)
+  "cancel-autoramp": handler("cancel-autoramp", async (request) => {
+    const autorampId = lib_core.getInput("autoramp-id") || "";
+    if (!autorampId)
+      throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+    return request("DELETE", `/autoramps/${autorampId}`);
   }),
 
-  'patch-autoramp': handler('patch-autoramp', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request('PATCH', `/autoramps/${autorampId}`, parseBody())
+  "patch-autoramp": handler("patch-autoramp", async (request) => {
+    const autorampId = lib_core.getInput("autoramp-id") || "";
+    if (!autorampId)
+      throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+    return request("PATCH", `/autoramps/${autorampId}`, parseBody());
   }),
 
-  'get-quote': handler('get-quote', async (request) => {
+  "get-quote": handler("get-quote", async (request) => {
     const qs = queryString({
-      customer_id: lib_core.getInput('customer-id') || '',
-      source_currency: lib_core.getInput('source-currency') || '',
-      destination_currency: lib_core.getInput('destination-currency') || '',
-      source_amount: lib_core.getInput('source-amount') || '',
-      destination_amount: lib_core.getInput('destination-amount') || '',
-      side: lib_core.getInput('side') || '',
-    })
-    return request('GET', `/autoramps/quote${qs}`)
+      customer_id: lib_core.getInput("customer-id") || "",
+      source_currency: lib_core.getInput("source-currency") || "",
+      destination_currency: lib_core.getInput("destination-currency") || "",
+      source_amount: lib_core.getInput("source-amount") || "",
+      destination_amount: lib_core.getInput("destination-amount") || "",
+      side: lib_core.getInput("side") || "",
+    });
+    return request("GET", `/autoramps/quote${qs}`);
   }),
 
-  'check-limit': handler('check-limit', async (request) => {
-    const qs = queryString({ customer_id: lib_core.getInput('customer-id') || '' })
-    return request('GET', `/autoramps/check-limit${qs}`)
+  "check-limit": handler("check-limit", async (request) => {
+    const qs = queryString({ customer_id: lib_core.getInput("customer-id") || "" });
+    return request("GET", `/autoramps/check-limit${qs}`);
   }),
 
-  'retry-autoramp-auth': handler('retry-autoramp-auth', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request('POST', `/autoramps/${autorampId}/retry-auth`)
+  "retry-autoramp-auth": handler("retry-autoramp-auth", async (request) => {
+    const autorampId = lib_core.getInput("autoramp-id") || "";
+    if (!autorampId)
+      throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+    return request("POST", `/autoramps/${autorampId}/retry-auth`);
   }),
 
-  'create-open-banking-payment': handler('create-open-banking-payment', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    const body = lib_core.getInput('body') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request(
-      'POST',
-      `/autoramps/${autorampId}/payments/open-banking`,
-      body ? JSON.parse(body) : {},
-    )
-  }),
+  "create-open-banking-payment": handler(
+    "create-open-banking-payment",
+    async (request) => {
+      const autorampId = lib_core.getInput("autoramp-id") || "";
+      const body = lib_core.getInput("body") || "";
+      if (!autorampId)
+        throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+      return request(
+        "POST",
+        `/autoramps/${autorampId}/payments/open-banking`,
+        body ? JSON.parse(body) : {},
+      );
+    },
+  ),
 
-  'get-open-banking-payment': handler('get-open-banking-payment', async (request) => {
-    const paymentId = lib_core.getInput('payment-id') || ''
-    if (!paymentId) throw new error_W3ActionError('MISSING_INPUT','payment-id is required')
-    return request('GET', `/autoramps/payments/open-banking/${paymentId}`)
-  }),
+  "get-open-banking-payment": handler(
+    "get-open-banking-payment",
+    async (request) => {
+      const paymentId = lib_core.getInput("payment-id") || "";
+      if (!paymentId)
+        throw new error_W3ActionError("MISSING_INPUT", "payment-id is required");
+      return request("GET", `/autoramps/payments/open-banking/${paymentId}`);
+    },
+  ),
 
   // -----------------------------------------------------------------
   // Transactions
   // -----------------------------------------------------------------
 
-  'list-transactions': handler('list-transactions', async (request) => {
+  "list-transactions": handler("list-transactions", async (request) => {
     const qs = queryString({
-      customer_id: lib_core.getInput('customer-id') || '',
-      autoramp_id: lib_core.getInput('autoramp-id') || '',
-      limit: lib_core.getInput('limit') || '',
-      offset: lib_core.getInput('offset') || '',
-      status: lib_core.getInput('status') || '',
-    })
-    return request('GET', `/autoramp-transactions${qs}`)
+      customer_id: lib_core.getInput("customer-id") || "",
+      autoramp_id: lib_core.getInput("autoramp-id") || "",
+      limit: lib_core.getInput("limit") || "",
+      offset: lib_core.getInput("offset") || "",
+      status: lib_core.getInput("status") || "",
+    });
+    return request("GET", `/autoramp-transactions${qs}`);
   }),
 
-  'get-transactions-by-ids': handler('get-transactions-by-ids', async (request) => {
-    const transactionIds = lib_core.getInput('transaction-ids') || ''
-    if (!transactionIds) throw new error_W3ActionError('MISSING_INPUT','transaction-ids is required')
-    const qs = queryString({ ids: transactionIds })
-    return request('GET', `/autoramp-transactions/ids${qs}`)
-  }),
+  "get-transactions-by-ids": handler(
+    "get-transactions-by-ids",
+    async (request) => {
+      const transactionIds = lib_core.getInput("transaction-ids") || "";
+      if (!transactionIds)
+        throw new error_W3ActionError("MISSING_INPUT", "transaction-ids is required");
+      const qs = queryString({ ids: transactionIds });
+      return request("GET", `/autoramp-transactions/ids${qs}`);
+    },
+  ),
 
   // -----------------------------------------------------------------
   // Customers
   // -----------------------------------------------------------------
 
-  'create-customer': handler('create-customer', async (request) => {
-    return request('POST', '/customers', parseBody())
+  "create-customer": handler("create-customer", async (request) => {
+    return request("POST", "/customers", parseBody());
   }),
 
-  'get-customer': handler('get-customer', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}`)
+  "get-customer": handler("get-customer", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/customers/${customerId}`);
   }),
 
-  'get-customer-by-external-id': handler('get-customer-by-external-id', async (request) => {
-    const externalId = lib_core.getInput('external-id') || ''
-    if (!externalId) throw new error_W3ActionError('MISSING_INPUT','external-id is required')
-    return request('GET', `/customers/${externalId}/external`)
+  "get-customer-by-external-id": handler(
+    "get-customer-by-external-id",
+    async (request) => {
+      const externalId = lib_core.getInput("external-id") || "";
+      if (!externalId)
+        throw new error_W3ActionError("MISSING_INPUT", "external-id is required");
+      return request("GET", `/customers/${externalId}/external`);
+    },
+  ),
+
+  "update-customer": handler("update-customer", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("PUT", `/customers/${customerId}`, parseBody());
   }),
 
-  'update-customer': handler('update-customer', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('PUT', `/customers/${customerId}`, parseBody())
-  }),
-
-  'list-customers': handler('list-customers', async (request) => {
+  "list-customers": handler("list-customers", async (request) => {
     const qs = queryString({
-      limit: lib_core.getInput('limit') || '',
-      offset: lib_core.getInput('offset') || '',
-    })
-    return request('GET', `/customers${qs}`)
+      limit: lib_core.getInput("limit") || "",
+      offset: lib_core.getInput("offset") || "",
+    });
+    return request("GET", `/customers${qs}`);
   }),
 
-  'get-customer-abilities': handler('get-customer-abilities', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}/abilities`)
-  }),
+  "get-customer-abilities": handler(
+    "get-customer-abilities",
+    async (request) => {
+      const customerId = lib_core.getInput("customer-id") || "";
+      if (!customerId)
+        throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+      return request("GET", `/customers/${customerId}/abilities`);
+    },
+  ),
 
   // -----------------------------------------------------------------
   // KYC / Identifications
   // -----------------------------------------------------------------
 
-  'create-identification': handler('create-identification', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    const body = lib_core.getInput('body') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
+  "create-identification": handler("create-identification", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    const body = lib_core.getInput("body") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
     return request(
-      'POST',
+      "POST",
       `/customers/${customerId}/identifications/v2`,
       body ? JSON.parse(body) : {},
-    )
+    );
   }),
 
-  'get-identification': handler('get-identification', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
-    return request('GET', `/identifications/${addressId}`)
+  "get-identification": handler("get-identification", async (request) => {
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!addressId)
+      throw new error_W3ActionError(
+        "MISSING_INPUT",
+        "address-id is required (identification ID)",
+      );
+    return request("GET", `/identifications/${addressId}`);
   }),
 
-  'list-identifications': handler('list-identifications', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}/identifications`)
+  "list-identifications": handler("list-identifications", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/customers/${customerId}/identifications`);
   }),
 
-  'get-compliance-questionnaire': handler('get-compliance-questionnaire', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
-    return request('GET', `/identifications/${addressId}/compliance-questionnaire`)
-  }),
+  "get-compliance-questionnaire": handler(
+    "get-compliance-questionnaire",
+    async (request) => {
+      const addressId = lib_core.getInput("address-id") || "";
+      if (!addressId)
+        throw new error_W3ActionError(
+          "MISSING_INPUT",
+          "address-id is required (identification ID)",
+        );
+      return request(
+        "GET",
+        `/identifications/${addressId}/compliance-questionnaire`,
+      );
+    },
+  ),
 
   // -----------------------------------------------------------------
   // Signings
   // -----------------------------------------------------------------
 
-  'create-signing': handler('create-signing', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('POST', `/customers/${customerId}/signings`, parseBody())
+  "create-signing": handler("create-signing", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("POST", `/customers/${customerId}/signings`, parseBody());
   }),
 
-  'list-signings': handler('list-signings', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}/signings`)
+  "list-signings": handler("list-signings", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/customers/${customerId}/signings`);
   }),
 
-  'get-required-signings': handler('get-required-signings', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}/required-signings`)
+  "get-required-signings": handler("get-required-signings", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/customers/${customerId}/required-signings`);
   }),
 
   // -----------------------------------------------------------------
   // Crypto Addresses
   // -----------------------------------------------------------------
 
-  'register-hosted-wallet': handler('register-hosted-wallet', async (request) => {
-    return request('POST', '/addresses/crypto/hosted', parseBody())
+  "register-hosted-wallet": handler(
+    "register-hosted-wallet",
+    async (request) => {
+      return request("POST", "/addresses/crypto/hosted", parseBody());
+    },
+  ),
+
+  "register-selfhosted-wallet": handler(
+    "register-selfhosted-wallet",
+    async (request) => {
+      return request("POST", "/addresses/crypto/selfhosted", parseBody());
+    },
+  ),
+
+  "list-crypto-addresses": handler("list-crypto-addresses", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/addresses/crypto/${customerId}`);
   }),
 
-  'register-selfhosted-wallet': handler('register-selfhosted-wallet', async (request) => {
-    return request('POST', '/addresses/crypto/selfhosted', parseBody())
-  }),
+  "disable-crypto-address": handler(
+    "disable-crypto-address",
+    async (request) => {
+      const addressId = lib_core.getInput("address-id") || "";
+      if (!addressId)
+        throw new error_W3ActionError("MISSING_INPUT", "address-id is required");
+      return request(
+        "PUT",
+        `/addresses/crypto/${addressId}/disabled`,
+        parseBody(),
+      );
+    },
+  ),
 
-  'list-crypto-addresses': handler('list-crypto-addresses', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/addresses/crypto/${customerId}`)
-  }),
-
-  'disable-crypto-address': handler('disable-crypto-address', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
-    return request('PUT', `/addresses/crypto/${addressId}/disabled`, parseBody())
-  }),
-
-  'search-vasps': handler('search-vasps', async (request) => {
-    const qs = queryString({ query: lib_core.getInput('vasp-query') || '' })
-    return request('GET', `/addresses/crypto/hosted/vasps${qs}`)
+  "search-vasps": handler("search-vasps", async (request) => {
+    const qs = queryString({ query: lib_core.getInput("vasp-query") || "" });
+    return request("GET", `/addresses/crypto/hosted/vasps${qs}`);
   }),
 
   // -----------------------------------------------------------------
   // Fiat Addresses (Bank Accounts)
   // -----------------------------------------------------------------
 
-  'register-bank-account': handler('register-bank-account', async (request) => {
-    return request('POST', '/addresses/fiat', parseBody())
+  "register-bank-account": handler("register-bank-account", async (request) => {
+    return request("POST", "/addresses/fiat", parseBody());
   }),
 
-  'list-bank-accounts': handler('list-bank-accounts', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
+  "list-bank-accounts": handler("list-bank-accounts", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
     if (customerId) {
-      return request('GET', `/addresses/fiat/${customerId}`)
+      return request("GET", `/addresses/fiat/${customerId}`);
     }
     const qs = queryString({
-      limit: lib_core.getInput('limit') || '',
-      offset: lib_core.getInput('offset') || '',
-      status: lib_core.getInput('status') || '',
-    })
-    return request('GET', `/addresses/fiat${qs}`)
+      limit: lib_core.getInput("limit") || "",
+      offset: lib_core.getInput("offset") || "",
+      status: lib_core.getInput("status") || "",
+    });
+    return request("GET", `/addresses/fiat${qs}`);
   }),
 
-  'get-bank-account': handler('get-bank-account', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
-    return request('GET', `/addresses/fiat/${customerId}/${addressId}`)
+  "get-bank-account": handler("get-bank-account", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    if (!addressId)
+      throw new error_W3ActionError("MISSING_INPUT", "address-id is required");
+    return request("GET", `/addresses/fiat/${customerId}/${addressId}`);
   }),
 
-  'delete-bank-account': handler('delete-bank-account', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
-    return request('DELETE', `/addresses/fiat/${customerId}/${addressId}`)
+  "delete-bank-account": handler("delete-bank-account", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    if (!addressId)
+      throw new error_W3ActionError("MISSING_INPUT", "address-id is required");
+    return request("DELETE", `/addresses/fiat/${customerId}/${addressId}`);
   }),
 
-  'retry-bank-auth': handler('retry-bank-auth', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
-    return request('POST', `/addresses/fiat/${addressId}/retry-auth`)
+  "retry-bank-auth": handler("retry-bank-auth", async (request) => {
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!addressId)
+      throw new error_W3ActionError("MISSING_INPUT", "address-id is required");
+    return request("POST", `/addresses/fiat/${addressId}/retry-auth`);
   }),
 
   // -----------------------------------------------------------------
   // Authentication Codes
   // -----------------------------------------------------------------
 
-  'get-auth-code': handler('get-auth-code', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (entity ID)')
-    return request('GET', `/authentication-codes/entity/${addressId}`)
+  "get-auth-code": handler("get-auth-code", async (request) => {
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!addressId)
+      throw new error_W3ActionError(
+        "MISSING_INPUT",
+        "address-id is required (entity ID)",
+      );
+    return request("GET", `/authentication-codes/entity/${addressId}`);
   }),
 
-  'submit-auth-code': handler('submit-auth-code', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (auth code ID)')
-    return request('PUT', `/authentication-codes/${addressId}`, parseBody())
+  "submit-auth-code": handler("submit-auth-code", async (request) => {
+    const addressId = lib_core.getInput("address-id") || "";
+    if (!addressId)
+      throw new error_W3ActionError(
+        "MISSING_INPUT",
+        "address-id is required (auth code ID)",
+      );
+    return request("PUT", `/authentication-codes/${addressId}`, parseBody());
   }),
 
   // -----------------------------------------------------------------
   // Microdeposits
   // -----------------------------------------------------------------
 
-  'get-microdeposits': handler('get-microdeposits', async (request) => {
-    const customerId = lib_core.getInput('customer-id') || ''
-    if (!customerId) throw new error_W3ActionError('MISSING_INPUT','customer-id is required')
-    return request('GET', `/customers/${customerId}/microdeposits`)
+  "get-microdeposits": handler("get-microdeposits", async (request) => {
+    const customerId = lib_core.getInput("customer-id") || "";
+    if (!customerId)
+      throw new error_W3ActionError("MISSING_INPUT", "customer-id is required");
+    return request("GET", `/customers/${customerId}/microdeposits`);
   }),
 
   // -----------------------------------------------------------------
   // Reference Data
   // -----------------------------------------------------------------
 
-  'list-cryptocurrencies': handler('list-cryptocurrencies', async (request) => {
-    return request('GET', '/cryptocurrencies')
+  "list-cryptocurrencies": handler("list-cryptocurrencies", async (request) => {
+    return request("GET", "/cryptocurrencies");
   }),
 
-  'list-fiat-currencies': handler('list-fiat-currencies', async (request) => {
-    return request('GET', '/fiatcurrencies')
+  "list-fiat-currencies": handler("list-fiat-currencies", async (request) => {
+    return request("GET", "/fiatcurrencies");
   }),
 
-  'get-exchange-rate': handler('get-exchange-rate', async (request) => {
-    const sourceCurrency = lib_core.getInput('source-currency') || ''
-    const destinationCurrency = lib_core.getInput('destination-currency') || ''
-    const baseCurrency = lib_core.getInput('base-currency') || ''
-    const quoteCurrency = lib_core.getInput('quote-currency') || ''
-    const sourceChain = lib_core.getInput('source-chain') || ''
-    const destinationChain = lib_core.getInput('destination-chain') || ''
-    const sourceAmount = lib_core.getInput('source-amount') || ''
+  "get-exchange-rate": handler("get-exchange-rate", async (request) => {
+    const sourceCurrency = lib_core.getInput("source-currency") || "";
+    const destinationCurrency = lib_core.getInput("destination-currency") || "";
+    const baseCurrency = lib_core.getInput("base-currency") || "";
+    const quoteCurrency = lib_core.getInput("quote-currency") || "";
+    const sourceChain = lib_core.getInput("source-chain") || "";
+    const destinationChain = lib_core.getInput("destination-chain") || "";
+    const sourceAmount = lib_core.getInput("source-amount") || "";
 
-    const src = sourceCurrency || baseCurrency
-    const dst = destinationCurrency || quoteCurrency
-    const fiatCodes = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY', 'HKD', 'SGD']
-    const srcType = fiatCodes.includes(src.toUpperCase()) ? 'fiat' : 'crypto'
-    const dstType = fiatCodes.includes(dst.toUpperCase()) ? 'fiat' : 'crypto'
+    const src = sourceCurrency || baseCurrency;
+    const dst = destinationCurrency || quoteCurrency;
+    const fiatCodes = [
+      "USD",
+      "EUR",
+      "GBP",
+      "CHF",
+      "CAD",
+      "AUD",
+      "JPY",
+      "CNY",
+      "HKD",
+      "SGD",
+    ];
+    const srcType = fiatCodes.includes(src.toUpperCase()) ? "fiat" : "crypto";
+    const dstType = fiatCodes.includes(dst.toUpperCase()) ? "fiat" : "crypto";
     const qs = queryString({
       source_currency_code: src,
       source_currency_type: srcType,
       destination_currency_code: dst,
       destination_currency_type: dstType,
-      source_currency_chain: srcType === 'crypto' ? (sourceChain || 'Ethereum') : '',
-      destination_currency_chain: dstType === 'crypto' ? (destinationChain || 'Ethereum') : '',
+      source_currency_chain:
+        srcType === "crypto" ? sourceChain || "Ethereum" : "",
+      destination_currency_chain:
+        dstType === "crypto" ? destinationChain || "Ethereum" : "",
       amount: sourceAmount,
-    })
-    return request('GET', `/exchange-rate${qs}`)
+    });
+    return request("GET", `/exchange-rate${qs}`);
   }),
 
-  'get-fee-profiles': handler('get-fee-profiles', async (request) => {
-    return request('GET', '/fee-profiles')
+  "get-fee-profiles": handler("get-fee-profiles", async (request) => {
+    return request("GET", "/fee-profiles");
   }),
 
-  'get-terms': handler('get-terms', async (request) => {
-    const qs = queryString({ country: lib_core.getInput('country-code') || '' })
-    return request('GET', `/terms-and-conditions${qs}`)
+  "get-terms": handler("get-terms", async (request) => {
+    const qs = queryString({ country: lib_core.getInput("country-code") || "" });
+    return request("GET", `/terms-and-conditions${qs}`);
   }),
 
-  'get-country-subdivisions': handler('get-country-subdivisions', async (request) => {
-    const countryCode = lib_core.getInput('country-code') || ''
-    if (!countryCode) throw new error_W3ActionError('MISSING_INPUT','country-code is required')
-    return request('GET', `/country_subdivisions/${countryCode}`)
-  }),
+  "get-country-subdivisions": handler(
+    "get-country-subdivisions",
+    async (request) => {
+      const countryCode = lib_core.getInput("country-code") || "";
+      if (!countryCode)
+        throw new error_W3ActionError("MISSING_INPUT", "country-code is required");
+      return request("GET", `/country_subdivisions/${countryCode}`);
+    },
+  ),
 
   // -----------------------------------------------------------------
   // Webhooks
   // -----------------------------------------------------------------
 
-  'list-webhooks': handler('list-webhooks', async (request) => {
-    return request('GET', '/webhooks')
+  "list-webhooks": handler("list-webhooks", async (request) => {
+    return request("GET", "/webhooks");
   }),
 
-  'update-webhook': handler('update-webhook', async (request) => {
-    const webhookId = lib_core.getInput('webhook-id') || ''
-    if (!webhookId) throw new error_W3ActionError('MISSING_INPUT','webhook-id is required')
-    return request('PATCH', `/webhooks/${webhookId}`, parseBody())
+  "update-webhook": handler("update-webhook", async (request) => {
+    const webhookId = lib_core.getInput("webhook-id") || "";
+    if (!webhookId)
+      throw new error_W3ActionError("MISSING_INPUT", "webhook-id is required");
+    return request("PATCH", `/webhooks/${webhookId}`, parseBody());
   }),
 
-  'ping-webhook': handler('ping-webhook', async (request) => {
-    const webhookId = lib_core.getInput('webhook-id') || ''
-    if (!webhookId) throw new error_W3ActionError('MISSING_INPUT','webhook-id is required')
-    return request('POST', `/webhooks/${webhookId}/ping`)
+  "ping-webhook": handler("ping-webhook", async (request) => {
+    const webhookId = lib_core.getInput("webhook-id") || "";
+    if (!webhookId)
+      throw new error_W3ActionError("MISSING_INPUT", "webhook-id is required");
+    return request("POST", `/webhooks/${webhookId}/ping`);
   }),
 
   // -----------------------------------------------------------------
   // Sandbox
   // -----------------------------------------------------------------
 
-  'sandbox-reset': handler('sandbox-reset', async (request) => {
-    return request('POST', '/sandbox/reset')
+  "sandbox-reset": handler("sandbox-reset", async (request) => {
+    return request("POST", "/sandbox/reset");
   }),
 
-  'sandbox-mock-transaction': handler('sandbox-mock-transaction', async (request) => {
-    return request('POST', '/sandbox/transaction', parseBody())
-  }),
+  "sandbox-mock-transaction": handler(
+    "sandbox-mock-transaction",
+    async (request) => {
+      return request("POST", "/sandbox/transaction", parseBody());
+    },
+  ),
 
-  'sandbox-update-autoramp': handler('sandbox-update-autoramp', async (request) => {
-    const autorampId = lib_core.getInput('autoramp-id') || ''
-    const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!autorampId) throw new error_W3ActionError('MISSING_INPUT','autoramp-id is required')
-    return request(
-      'PUT',
-      `/sandbox/autoramp/${autorampId}`,
-      { status: sandboxStatus || parseBody().status },
-    )
-  }),
+  "sandbox-update-autoramp": handler(
+    "sandbox-update-autoramp",
+    async (request) => {
+      const autorampId = lib_core.getInput("autoramp-id") || "";
+      const sandboxStatus = lib_core.getInput("sandbox-status") || "";
+      if (!autorampId)
+        throw new error_W3ActionError("MISSING_INPUT", "autoramp-id is required");
+      return request("PUT", `/sandbox/autoramp/${autorampId}`, {
+        status: sandboxStatus || parseBody().status,
+      });
+    },
+  ),
 
-  'sandbox-update-fiat-verification': handler('sandbox-update-fiat-verification', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required')
-    return request(
-      'PUT',
-      `/sandbox/fiat-verification/${addressId}`,
-      { status: sandboxStatus || parseBody().status },
-    )
-  }),
+  "sandbox-update-fiat-verification": handler(
+    "sandbox-update-fiat-verification",
+    async (request) => {
+      const addressId = lib_core.getInput("address-id") || "";
+      const sandboxStatus = lib_core.getInput("sandbox-status") || "";
+      if (!addressId)
+        throw new error_W3ActionError("MISSING_INPUT", "address-id is required");
+      return request("PUT", `/sandbox/fiat-verification/${addressId}`, {
+        status: sandboxStatus || parseBody().status,
+      });
+    },
+  ),
 
-  'sandbox-update-identification': handler('sandbox-update-identification', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (identification ID)')
-    return request(
-      'POST',
-      `/sandbox/identification/${addressId}`,
-      { status: sandboxStatus || parseBody().status },
-    )
-  }),
+  "sandbox-update-identification": handler(
+    "sandbox-update-identification",
+    async (request) => {
+      const addressId = lib_core.getInput("address-id") || "";
+      const sandboxStatus = lib_core.getInput("sandbox-status") || "";
+      if (!addressId)
+        throw new error_W3ActionError(
+          "MISSING_INPUT",
+          "address-id is required (identification ID)",
+        );
+      return request("POST", `/sandbox/identification/${addressId}`, {
+        status: sandboxStatus || parseBody().status,
+      });
+    },
+  ),
 
-  'sandbox-update-transaction': handler('sandbox-update-transaction', async (request) => {
-    const addressId = lib_core.getInput('address-id') || ''
-    const sandboxStatus = lib_core.getInput('sandbox-status') || ''
-    if (!addressId) throw new error_W3ActionError('MISSING_INPUT','address-id is required (transaction ID)')
-    return request(
-      'PUT',
-      `/sandbox/transaction/${addressId}/state`,
-      { state: sandboxStatus || parseBody().state },
-    )
-  }),
-})
+  "sandbox-update-transaction": handler(
+    "sandbox-update-transaction",
+    async (request) => {
+      const addressId = lib_core.getInput("address-id") || "";
+      const sandboxStatus = lib_core.getInput("sandbox-status") || "";
+      if (!addressId)
+        throw new error_W3ActionError(
+          "MISSING_INPUT",
+          "address-id is required (transaction ID)",
+        );
+      return request("PUT", `/sandbox/transaction/${addressId}/state`, {
+        state: sandboxStatus || parseBody().state,
+      });
+    },
+  ),
+});
 
-router()
+// Suppress noisy unhandled rejection warnings; the wrapper below
+// catches via handleError, which calls core.setFailed.
+process.on("unhandledRejection", () => {});
+(async () => {
+  try {
+    await router();
+  } catch (error) {
+    handleError(error);
+  }
+})();
 

@@ -83,7 +83,7 @@ manage the full lifecycle from your W3 workflows.
     customer-id: cust_123
     source-currency: USD
     destination-currency: USDC
-    source-amount: '1000'
+    source-amount: "1000"
 
 - name: Create autoramp
   uses: w3/iron@v1
@@ -107,11 +107,11 @@ manage the full lifecycle from your W3 workflows.
 
 Create a new on-ramp, off-ramp, or swap autoramp.
 
-| Input | Required | Description |
-| ----------------- | -------- | ------------------------------------------- |
-| `api-key` | yes | Iron API key |
-| `body` | yes | JSON with customer_id, currencies, amount, deposit_rail, destination_address_id |
-| `idempotency-key` | no | UUID for idempotent creation |
+| Input             | Required | Description                                                                     |
+| ----------------- | -------- | ------------------------------------------------------------------------------- |
+| `api-key`         | yes      | Iron API key                                                                    |
+| `body`            | yes      | JSON with customer_id, currencies, amount, deposit_rail, destination_address_id |
+| `idempotency-key` | no       | UUID for idempotent creation                                                    |
 
 **Output (`result`):**
 
@@ -128,54 +128,54 @@ Create a new on-ramp, off-ramp, or swap autoramp.
 
 ### get-autoramp
 
-| Input | Required | Description |
-| -------------- | -------- | ------------ |
-| `autoramp-id` | yes | Autoramp ID |
+| Input         | Required | Description |
+| ------------- | -------- | ----------- |
+| `autoramp-id` | yes      | Autoramp ID |
 
 ### get-autoramp-by-external-id
 
-| Input | Required | Description |
+| Input         | Required | Description             |
 | ------------- | -------- | ----------------------- |
-| `external-id` | yes | Your external reference |
+| `external-id` | yes      | Your external reference |
 
 ### list-autoramps
 
-| Input | Required | Description |
-| ------------- | -------- | ----------------------- |
-| `customer-id` | no | Filter by customer |
-| `status` | no | Filter by status |
-| `limit` | no | Pagination limit |
-| `offset` | no | Pagination offset |
+| Input         | Required | Description        |
+| ------------- | -------- | ------------------ |
+| `customer-id` | no       | Filter by customer |
+| `status`      | no       | Filter by status   |
+| `limit`       | no       | Pagination limit   |
+| `offset`      | no       | Pagination offset  |
 
 **Output:** `[{id, status, source_currency, ...}, ...]`
 
 ### cancel-autoramp
 
-| Input | Required | Description |
-| -------------- | -------- | ----------- |
-| `autoramp-id` | yes | Autoramp ID |
+| Input         | Required | Description |
+| ------------- | -------- | ----------- |
+| `autoramp-id` | yes      | Autoramp ID |
 
 ### patch-autoramp
 
 Update an autoramp's market settings.
 
-| Input | Required | Description |
-| -------------- | -------- | ------------------------------- |
-| `autoramp-id` | yes | Autoramp ID |
-| `body` | yes | JSON with fields to update |
+| Input         | Required | Description                |
+| ------------- | -------- | -------------------------- |
+| `autoramp-id` | yes      | Autoramp ID                |
+| `body`        | yes      | JSON with fields to update |
 
 ### get-quote
 
 Get a locked-rate quote for an autoramp.
 
-| Input | Required | Description |
-| ---------------------- | -------- | -------------------------------------- |
-| `customer-id` | yes | Customer ID |
-| `source-currency` | yes | Source currency (e.g. USD) |
-| `destination-currency` | yes | Destination currency (e.g. USDC) |
-| `source-amount` | no | Amount in source (provide one amount) |
-| `destination-amount` | no | Amount in destination |
-| `side` | no | Which amount is fixed |
+| Input                  | Required | Description                           |
+| ---------------------- | -------- | ------------------------------------- |
+| `customer-id`          | yes      | Customer ID                           |
+| `source-currency`      | yes      | Source currency (e.g. USD)            |
+| `destination-currency` | yes      | Destination currency (e.g. USDC)      |
+| `source-amount`        | no       | Amount in source (provide one amount) |
+| `destination-amount`   | no       | Amount in destination                 |
+| `side`                 | no       | Which amount is fixed                 |
 
 **Output (`result`):**
 
@@ -193,58 +193,58 @@ Get a locked-rate quote for an autoramp.
 
 Check if a customer can create more autoramps.
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ### retry-autoramp-auth
 
 Retry authentication for a stuck autoramp.
 
-| Input | Required | Description |
-| -------------- | -------- | ----------- |
-| `autoramp-id` | yes | Autoramp ID |
+| Input         | Required | Description |
+| ------------- | -------- | ----------- |
+| `autoramp-id` | yes      | Autoramp ID |
 
 ## Open banking commands
 
 ### create-open-banking-payment
 
-| Input | Required | Description |
-| ----------------- | -------- | -------------------------------- |
-| `body` | yes | JSON with payment details |
-| `idempotency-key` | no | UUID for idempotent creation |
+| Input             | Required | Description                  |
+| ----------------- | -------- | ---------------------------- |
+| `body`            | yes      | JSON with payment details    |
+| `idempotency-key` | no       | UUID for idempotent creation |
 
 ### get-open-banking-payment
 
-| Input | Required | Description |
+| Input        | Required | Description |
 | ------------ | -------- | ----------- |
-| `payment-id` | yes | Payment ID |
+| `payment-id` | yes      | Payment ID  |
 
 ## Transaction commands
 
 ### list-transactions
 
-| Input | Required | Description |
-| ------------- | -------- | ---------------------- |
-| `customer-id` | no | Filter by customer |
-| `status` | no | Filter by status |
-| `limit` | no | Pagination limit |
-| `offset` | no | Pagination offset |
+| Input         | Required | Description        |
+| ------------- | -------- | ------------------ |
+| `customer-id` | no       | Filter by customer |
+| `status`      | no       | Filter by status   |
+| `limit`       | no       | Pagination limit   |
+| `offset`      | no       | Pagination offset  |
 
 ### get-transactions-by-ids
 
-| Input | Required | Description |
-| ----------------- | -------- | -------------------------------- |
-| `transaction-ids` | yes | Comma-separated transaction IDs |
+| Input             | Required | Description                     |
+| ----------------- | -------- | ------------------------------- |
+| `transaction-ids` | yes      | Comma-separated transaction IDs |
 
 ## Customer commands
 
 ### create-customer
 
-| Input | Required | Description |
-| ----------------- | -------- | --------------------------------------------- |
-| `body` | yes | JSON with customer details (person/business) |
-| `idempotency-key` | no | UUID for idempotent creation |
+| Input             | Required | Description                                  |
+| ----------------- | -------- | -------------------------------------------- |
+| `body`            | yes      | JSON with customer details (person/business) |
+| `idempotency-key` | no       | UUID for idempotent creation                 |
 
 **Output (`result`):**
 
@@ -259,37 +259,37 @@ Retry authentication for a stuck autoramp.
 
 ### get-customer
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ### get-customer-by-external-id
 
-| Input | Required | Description |
+| Input         | Required | Description             |
 | ------------- | -------- | ----------------------- |
-| `external-id` | yes | Your external reference |
+| `external-id` | yes      | Your external reference |
 
 ### update-customer
 
-| Input | Required | Description |
-| ------------- | -------- | ------------------------------ |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with fields to update |
+| Input         | Required | Description                |
+| ------------- | -------- | -------------------------- |
+| `customer-id` | yes      | Customer ID                |
+| `body`        | yes      | JSON with fields to update |
 
 ### list-customers
 
-| Input | Required | Description |
-| -------- | -------- | ---------------- |
-| `limit` | no | Pagination limit |
-| `offset` | no | Pagination offset |
+| Input    | Required | Description       |
+| -------- | -------- | ----------------- |
+| `limit`  | no       | Pagination limit  |
+| `offset` | no       | Pagination offset |
 
 ### get-customer-abilities
 
 Get what operations a customer is currently able to perform.
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ## KYC / Identification commands
 
@@ -297,28 +297,28 @@ Get what operations a customer is currently able to perform.
 
 Start KYC or KYB verification for a customer.
 
-| Input | Required | Description |
-| ------------- | -------- | ---------------------------------- |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with identification details |
+| Input         | Required | Description                      |
+| ------------- | -------- | -------------------------------- |
+| `customer-id` | yes      | Customer ID                      |
+| `body`        | yes      | JSON with identification details |
 
 ### get-identification
 
-| Input | Required | Description |
+| Input        | Required | Description       |
 | ------------ | -------- | ----------------- |
-| `address-id` | yes | Identification ID |
+| `address-id` | yes      | Identification ID |
 
 ### list-identifications
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ### get-compliance-questionnaire
 
-| Input | Required | Description |
+| Input        | Required | Description       |
 | ------------ | -------- | ----------------- |
-| `address-id` | yes | Identification ID |
+| `address-id` | yes      | Identification ID |
 
 ## Signing commands
 
@@ -326,22 +326,22 @@ Start KYC or KYB verification for a customer.
 
 Create a customer signing (terms acceptance).
 
-| Input | Required | Description |
-| ------------- | -------- | ----------------------------- |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with signing details |
+| Input         | Required | Description               |
+| ------------- | -------- | ------------------------- |
+| `customer-id` | yes      | Customer ID               |
+| `body`        | yes      | JSON with signing details |
 
 ### list-signings
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ### get-required-signings
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ## Crypto address commands
 
@@ -350,39 +350,39 @@ Create a customer signing (terms acceptance).
 Register a hosted (exchange) wallet address. Requires VASP information
 for Travel Rule compliance.
 
-| Input | Required | Description |
-| ------------- | -------- | ---------------------------------------- |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with address, chain, VASP details |
+| Input         | Required | Description                            |
+| ------------- | -------- | -------------------------------------- |
+| `customer-id` | yes      | Customer ID                            |
+| `body`        | yes      | JSON with address, chain, VASP details |
 
 ### register-selfhosted-wallet
 
 Register a self-hosted (non-custodial) wallet address.
 
-| Input | Required | Description |
-| ------------- | -------- | --------------------------------- |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with address, chain details |
+| Input         | Required | Description                      |
+| ------------- | -------- | -------------------------------- |
+| `customer-id` | yes      | Customer ID                      |
+| `body`        | yes      | JSON with address, chain details |
 
 ### list-crypto-addresses
 
-| Input | Required | Description |
+| Input         | Required | Description |
 | ------------- | -------- | ----------- |
-| `customer-id` | yes | Customer ID |
+| `customer-id` | yes      | Customer ID |
 
 ### disable-crypto-address
 
-| Input | Required | Description |
+| Input        | Required | Description |
 | ------------ | -------- | ----------- |
-| `address-id` | yes | Address ID |
+| `address-id` | yes      | Address ID  |
 
 ### search-vasps
 
 Search hosted wallet providers (VASPs) for Travel Rule compliance.
 
-| Input | Required | Description |
+| Input        | Required | Description         |
 | ------------ | -------- | ------------------- |
-| `vasp-query` | yes | VASP name to search |
+| `vasp-query` | yes      | VASP name to search |
 
 ## Bank account commands
 
@@ -390,36 +390,36 @@ Search hosted wallet providers (VASPs) for Travel Rule compliance.
 
 Register a bank account (SEPA, ACH, Wire, RTP, SWIFT, CHAPS, FPS).
 
-| Input | Required | Description |
-| ------------- | -------- | ----------------------------------- |
-| `customer-id` | yes | Customer ID |
-| `body` | yes | JSON with bank account details |
+| Input         | Required | Description                    |
+| ------------- | -------- | ------------------------------ |
+| `customer-id` | yes      | Customer ID                    |
+| `body`        | yes      | JSON with bank account details |
 
 ### list-bank-accounts
 
-| Input | Required | Description |
-| ------------- | -------- | ---------------------- |
-| `customer-id` | no | Filter by customer |
+| Input         | Required | Description        |
+| ------------- | -------- | ------------------ |
+| `customer-id` | no       | Filter by customer |
 
 ### get-bank-account
 
-| Input | Required | Description |
+| Input        | Required | Description     |
 | ------------ | -------- | --------------- |
-| `address-id` | yes | Bank account ID |
+| `address-id` | yes      | Bank account ID |
 
 ### delete-bank-account
 
-| Input | Required | Description |
+| Input        | Required | Description     |
 | ------------ | -------- | --------------- |
-| `address-id` | yes | Bank account ID |
+| `address-id` | yes      | Bank account ID |
 
 ### retry-bank-auth
 
 Retry bank account authentication.
 
-| Input | Required | Description |
+| Input        | Required | Description     |
 | ------------ | -------- | --------------- |
-| `address-id` | yes | Bank account ID |
+| `address-id` | yes      | Bank account ID |
 
 ## Bank account authentication commands
 
@@ -427,24 +427,24 @@ Retry bank account authentication.
 
 Get pending authentication code for an entity.
 
-| Input | Required | Description |
+| Input        | Required | Description |
 | ------------ | -------- | ----------- |
-| `address-id` | yes | Entity ID |
+| `address-id` | yes      | Entity ID   |
 
 ### submit-auth-code
 
-| Input | Required | Description |
-| ------------ | -------- | ----------- |
-| `address-id` | yes | Entity ID |
-| `body` | yes | JSON with auth code |
+| Input        | Required | Description         |
+| ------------ | -------- | ------------------- |
+| `address-id` | yes      | Entity ID           |
+| `body`       | yes      | JSON with auth code |
 
 ### get-microdeposits
 
 Get microdeposit verification status for bank account verification.
 
-| Input | Required | Description |
+| Input        | Required | Description     |
 | ------------ | -------- | --------------- |
-| `address-id` | yes | Bank account ID |
+| `address-id` | yes      | Bank account ID |
 
 ## Reference data commands
 
@@ -458,10 +458,10 @@ List all supported fiat currencies. No additional inputs required.
 
 ### get-exchange-rate
 
-| Input | Required | Description |
-| ---------------- | -------- | ---------------------------------------- |
-| `base-currency` | yes | Base currency (e.g. USD) |
-| `quote-currency` | yes | Quote currency (e.g. USDC) |
+| Input            | Required | Description                |
+| ---------------- | -------- | -------------------------- |
+| `base-currency`  | yes      | Base currency (e.g. USD)   |
+| `quote-currency` | yes      | Quote currency (e.g. USDC) |
 
 **Output (`result`):**
 
@@ -484,9 +484,9 @@ Get current terms and conditions. No additional inputs required.
 
 ### get-country-subdivisions
 
-| Input | Required | Description |
-| -------------- | -------- | ---------------------- |
-| `country-code` | yes | ISO country code (US) |
+| Input          | Required | Description           |
+| -------------- | -------- | --------------------- |
+| `country-code` | yes      | ISO country code (US) |
 
 ## Webhook commands
 
@@ -496,16 +496,16 @@ List all configured webhooks. No additional inputs required.
 
 ### update-webhook
 
-| Input | Required | Description |
-| ------------ | -------- | ----------------------------------- |
-| `webhook-id` | yes | Webhook ID |
-| `body` | yes | JSON with updated webhook config |
+| Input        | Required | Description                      |
+| ------------ | -------- | -------------------------------- |
+| `webhook-id` | yes      | Webhook ID                       |
+| `body`       | yes      | JSON with updated webhook config |
 
 ### ping-webhook
 
-| Input | Required | Description |
+| Input        | Required | Description |
 | ------------ | -------- | ----------- |
-| `webhook-id` | yes | Webhook ID |
+| `webhook-id` | yes      | Webhook ID  |
 
 ## Sandbox commands
 
@@ -515,82 +515,82 @@ Reset the sandbox environment. No additional inputs required.
 
 ### sandbox-mock-transaction
 
-| Input | Required | Description |
-| ------ | -------- | ------------------------------------ |
-| `body` | yes | JSON with mock transaction details |
+| Input  | Required | Description                        |
+| ------ | -------- | ---------------------------------- |
+| `body` | yes      | JSON with mock transaction details |
 
 ### sandbox-update-autoramp
 
-| Input | Required | Description |
-| ---------------- | -------- | ----------------------- |
-| `autoramp-id` | yes | Autoramp ID |
-| `sandbox-status` | yes | New status |
+| Input            | Required | Description |
+| ---------------- | -------- | ----------- |
+| `autoramp-id`    | yes      | Autoramp ID |
+| `sandbox-status` | yes      | New status  |
 
 ### sandbox-update-fiat-verification
 
-| Input | Required | Description |
-| ---------------- | -------- | ----------------------- |
-| `address-id` | yes | Fiat verification ID |
-| `sandbox-status` | yes | New status |
+| Input            | Required | Description          |
+| ---------------- | -------- | -------------------- |
+| `address-id`     | yes      | Fiat verification ID |
+| `sandbox-status` | yes      | New status           |
 
 ### sandbox-update-identification
 
-| Input | Required | Description |
-| ---------------- | -------- | ----------------------- |
-| `address-id` | yes | Identification ID |
-| `sandbox-status` | yes | New status |
+| Input            | Required | Description       |
+| ---------------- | -------- | ----------------- |
+| `address-id`     | yes      | Identification ID |
+| `sandbox-status` | yes      | New status        |
 
 ### sandbox-update-transaction
 
-| Input | Required | Description |
-| ---------------- | -------- | ----------------------- |
-| `address-id` | yes | Transaction ID |
-| `sandbox-status` | yes | New status |
+| Input            | Required | Description    |
+| ---------------- | -------- | -------------- |
+| `address-id`     | yes      | Transaction ID |
+| `sandbox-status` | yes      | New status     |
 
 ## All inputs
 
-| Input | Required | Default | Description |
+| Input                  | Required | Default                | Description                                        |
 | ---------------------- | -------- | ---------------------- | -------------------------------------------------- |
-| `command` | yes | | Operation to perform (48 commands) |
-| `api-key` | yes | | Iron API key (`X-API-Key` header) |
-| `api-url` | no | `https://api.iron.xyz` | API base URL (production or sandbox) |
-| `customer-id` | no | | Customer ID |
-| `autoramp-id` | no | | Autoramp ID |
-| `external-id` | no | | External ID for cross-referencing with your system |
-| `address-id` | no | | Address, identification, or entity ID |
-| `body` | no | | Request body as JSON (for create/update) |
-| `limit` | no | | Pagination limit |
-| `offset` | no | | Pagination offset |
-| `status` | no | | Status filter for list operations |
-| `idempotency-key` | no | | UUID for idempotent write operations |
-| `source-currency` | no | | Source currency for quotes (e.g. USD) |
-| `destination-currency` | no | | Destination currency for quotes (e.g. USDC) |
-| `source-amount` | no | | Amount in source currency |
-| `destination-amount` | no | | Amount in destination currency |
-| `side` | no | | Quote side (which amount is fixed) |
-| `base-currency` | no | | Base currency for exchange rate |
-| `quote-currency` | no | | Quote currency for exchange rate |
-| `transaction-ids` | no | | Comma-separated transaction IDs |
-| `sandbox-status` | no | | Status for sandbox update operations |
-| `webhook-id` | no | | Webhook ID |
-| `country-code` | no | | ISO country code |
-| `vasp-query` | no | | VASP search query |
-| `payment-id` | no | | Open banking payment ID |
+| `command`              | yes      |                        | Operation to perform (48 commands)                 |
+| `api-key`              | yes      |                        | Iron API key (`X-API-Key` header)                  |
+| `api-url`              | no       | `https://api.iron.xyz` | API base URL (production or sandbox)               |
+| `customer-id`          | no       |                        | Customer ID                                        |
+| `autoramp-id`          | no       |                        | Autoramp ID                                        |
+| `external-id`          | no       |                        | External ID for cross-referencing with your system |
+| `address-id`           | no       |                        | Address, identification, or entity ID              |
+| `body`                 | no       |                        | Request body as JSON (for create/update)           |
+| `limit`                | no       |                        | Pagination limit                                   |
+| `offset`               | no       |                        | Pagination offset                                  |
+| `status`               | no       |                        | Status filter for list operations                  |
+| `idempotency-key`      | no       |                        | UUID for idempotent write operations               |
+| `source-currency`      | no       |                        | Source currency for quotes (e.g. USD)              |
+| `destination-currency` | no       |                        | Destination currency for quotes (e.g. USDC)        |
+| `source-amount`        | no       |                        | Amount in source currency                          |
+| `destination-amount`   | no       |                        | Amount in destination currency                     |
+| `side`                 | no       |                        | Quote side (which amount is fixed)                 |
+| `base-currency`        | no       |                        | Base currency for exchange rate                    |
+| `quote-currency`       | no       |                        | Quote currency for exchange rate                   |
+| `transaction-ids`      | no       |                        | Comma-separated transaction IDs                    |
+| `sandbox-status`       | no       |                        | Status for sandbox update operations               |
+| `webhook-id`           | no       |                        | Webhook ID                                         |
+| `country-code`         | no       |                        | ISO country code                                   |
+| `vasp-query`           | no       |                        | VASP search query                                  |
+| `payment-id`           | no       |                        | Open banking payment ID                            |
 
 ## Authentication
 
 Iron uses API key authentication via the `X-API-Key` header. Get your
 API key from the Iron dashboard.
 
-| Environment | URL |
-| ----------- | ------------------------------------ |
-| Production | `https://api.iron.xyz` (default) |
-| Sandbox | `https://api.sandbox.iron.xyz` |
+| Environment | URL                              |
+| ----------- | -------------------------------- |
+| Production  | `https://api.iron.xyz` (default) |
+| Sandbox     | `https://api.sandbox.iron.xyz`   |
 
 ```yaml
 with:
   api-key: ${{ secrets.IRON_API_KEY }}
-  api-url: https://api.sandbox.iron.xyz  # for testing
+  api-url: https://api.sandbox.iron.xyz # for testing
 ```
 
 ## Full onboarding workflow example
@@ -665,7 +665,7 @@ and wallet, then create an autoramp to convert USD to USDC.
     customer-id: ${{ fromJSON(steps.customer.outputs.result).id }}
     source-currency: USD
     destination-currency: USDC
-    source-amount: '1000'
+    source-amount: "1000"
 
 - name: Create autoramp
   uses: w3/iron@v1
