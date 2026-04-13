@@ -1,0 +1,377 @@
+kind: integration
+name: Fiat-to-crypto on/off-ramp, stablecoin autoramps, and bank account management
+version: 0.1.0
+repo: w3-io/w3-iron-action
+partner: Iron
+description: Fiat-to-crypto on/off-ramp, stablecoin autoramps, and bank account management
+context: 'Iron provides regulated fiat rails for crypto operations. On-ramp converts
+  bank deposits (USD, EUR, GBP via ACH, SEPA, Wire) to stablecoins (USDC, EURC, USDT).
+  Off-ramp converts stablecoins back to fiat bank transfers. Autoramps are standing
+  conversion rules — once created, they execute automatically when funds arrive. Supports
+  Ethereum, Polygon, Arbitrum, Base, Solana, and Stellar.
+
+
+  Typical workflow pattern: get-quote (lock a rate) → create-autoramp (execute the
+  conversion) → list-transactions (monitor progress). Customers must be onboarded
+  and KYC''d before creating autoramps — use create-customer + create-identification
+  for programmatic onboarding, or Iron''s hosted KYC flow for user-facing applications.
+
+
+  Use with w3/mongodb for transaction state, w3/email for notifications, and w3/chainalysis
+  for compliance screening. Webhook triggers (coming soon) enable event-driven flows:
+  react when deposits arrive or transfers complete.
+
+
+  Two environments: production (api.iron.xyz) and sandbox (api.sandbox.iron.xyz) for
+  testing with mock transactions.
+
+  '
+commands:
+- name: get-quote
+  description: 'Get a locked-rate quote for a fiat-to-crypto or crypto-to-fiat conversion.
+    Returns the exchange rate, fees, and amounts. Rate is locked for up to 20 minutes.
+    Always call this before create-autoramp.
+
+    '
+  inputs:
+    customer-id:
+      type: string
+      required: true
+      description: Customer ID (must be KYC-verified)
+    source-currency:
+      type: string
+      required: true
+      description: Source currency code (e.g. USD, USDC, EUR, EURC)
+    destination-currency:
+      type: string
+      required: true
+      description: Destination currency code
+    source-amount:
+      type: string
+      required: false
+      description: Amount in source currency (provide this OR destination-amount)
+    destination-amount:
+      type: string
+      required: false
+      description: Amount in destination currency
+  outputs:
+    result:
+      type: object
+      description: '{effective_rate, fee, from, out_amount, ...} with locked rate'
+- name: create-autoramp
+  description: 'Create an on-ramp (fiat→crypto), off-ramp (crypto→fiat), or swap (crypto→crypto)
+    autoramp. This is the core operation — it initiates a conversion that executes
+    when funds are deposited. Requires a KYC''d customer with registered addresses.
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Autoramp parameters as JSON. Key fields: customer_id, source_currency,
+        destination_currency, source_amount or destination_amount, destination_address_id
+        (crypto wallet for on-ramp, bank account for off-ramp), deposit_rail (ach,
+        sepa, wire, etc. for on-ramp). See Iron docs for full schema.
+
+        '
+  outputs:
+    result:
+      type: object
+      description: Autoramp object with id, status, amounts, addresses, created_at
+- name: get-autoramp
+  description: Get the current status and details of an autoramp by ID.
+  inputs:
+    autoramp-id:
+      type: string
+      required: true
+      description: Autoramp ID
+  outputs:
+    result:
+      type: object
+      description: Full autoramp object with status, amounts, transaction history
+- name: list-autoramps
+  description: List autoramps for a customer with optional status filter.
+  inputs:
+    customer-id:
+      type: string
+      required: false
+      description: Filter by customer ID
+    status:
+      type: string
+      required: false
+      description: Filter by status (e.g. active, completed, cancelled)
+  outputs:
+    result:
+      type: object
+      description: '{cursor, items: [autoramp objects], prev_cursor}'
+- name: cancel-autoramp
+  description: Cancel a pending or active autoramp.
+  inputs:
+    autoramp-id:
+      type: string
+      required: true
+      description: Autoramp ID to cancel
+  outputs:
+    result:
+      type: object
+      description: Cancelled autoramp object
+- name: list-transactions
+  description: 'List autoramp transactions with optional filters. Transactions represent
+    individual conversions within an autoramp — an autoramp can have multiple transactions
+    over time.
+
+    '
+  inputs:
+    customer-id:
+      type: string
+      required: false
+      description: Filter by customer
+    autoramp-id:
+      type: string
+      required: false
+      description: Filter by autoramp
+    status:
+      type: string
+      required: false
+      description: Filter by transaction status
+  outputs:
+    result:
+      type: object
+      description: '{cursor, items: [transaction objects with amounts, status, timestamps]}'
+- name: create-customer
+  description: 'Create a new customer record. Required before any financial operations.
+    Customer must complete KYC (via create-identification) before creating autoramps.
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Customer params as JSON. Required: customer_type ("Person" or
+        "Business"), email. Optional: name, external_id (your system''s ID for cross-referencing).
+
+        '
+  outputs:
+    result:
+      type: object
+      description: Customer object with id, customer_type, email, status, created_at
+- name: get-customer
+  description: Get a customer by Iron's internal ID.
+  inputs:
+    customer-id:
+      type: string
+      required: true
+      description: Customer ID
+  outputs:
+    result:
+      type: object
+      description: Full customer object with status, identification_ids, signing_ids
+- name: get-customer-by-external-id
+  description: Get a customer by your external ID (the ID from your system).
+  inputs:
+    external-id:
+      type: string
+      required: true
+      description: Your external ID
+  outputs:
+    result:
+      type: object
+      description: Customer object
+- name: list-customers
+  description: List all customers with pagination.
+  inputs:
+    limit:
+      type: number
+      required: false
+      description: Page size
+    offset:
+      type: number
+      required: false
+      description: Pagination offset
+  outputs:
+    result:
+      type: object
+      description: '{cursor, items: [customer objects]}'
+- name: create-identification
+  description: 'Start KYC/KYB verification for a customer. Returns a hosted verification
+    URL that the customer completes in their browser. Iron handles the identity verification
+    flow. Use webhooks to know when verification completes.
+
+    '
+  inputs:
+    customer-id:
+      type: string
+      required: true
+      description: Customer ID to verify
+  outputs:
+    result:
+      type: object
+      description: Identification object with id, status, and hosted verification
+        URL
+- name: register-hosted-wallet
+  description: 'Register a hosted (exchange) wallet address for a customer. Required
+    for Travel Rule compliance. Used as destination for on-ramp autoramps.
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Wallet params: customer_id, address, chain, vasp_id (from search-vasps)'
+  outputs:
+    result:
+      type: object
+      description: Registered wallet address with id, address, chain, status
+- name: register-selfhosted-wallet
+  description: 'Register a self-hosted (non-custodial) wallet address for a customer.
+    Requires the customer to sign a message proving wallet ownership.
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Wallet params: customer_id, address, chain'
+  outputs:
+    result:
+      type: object
+      description: Registered wallet address with id, address, chain, status
+- name: register-bank-account
+  description: 'Register a fiat bank account for a customer. Supports SEPA, ACH, Wire,
+    RTP, SWIFT, CHAPS, FPS. Bank must be verified before use (microdeposits or open
+    banking).
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Bank account params: customer_id, deposit_rail, account details
+        (varies by rail)'
+  outputs:
+    result:
+      type: object
+      description: Bank account with id, status, deposit_rail, verification status
+- name: list-bank-accounts
+  description: List registered bank accounts for a customer.
+  inputs:
+    customer-id:
+      type: string
+      required: false
+      description: Filter by customer (omit for all)
+  outputs:
+    result:
+      type: object
+      description: '{cursor, items: [bank account objects]}'
+- name: list-cryptocurrencies
+  description: 'List all supported cryptocurrencies with chain and contract addresses.
+    Returns USDC, EURC, USDT on Ethereum, Polygon, Arbitrum, Base, Solana, Stellar.
+
+    '
+  outputs:
+    result:
+      type: array
+      description: '[{code, name, chain, address, mint_only}]'
+- name: list-fiat-currencies
+  description: List all supported fiat currencies (USD, EUR, GBP).
+  outputs:
+    result:
+      type: array
+      description: '[{code, name, ...}]'
+- name: get-exchange-rate
+  description: 'Get the current exchange rate between two currencies. Lighter than
+    get-quote — no rate locking, no customer context. Good for display or threshold
+    checks.
+
+    '
+  inputs:
+    source-currency:
+      type: string
+      required: true
+      description: Source currency code (e.g. USD)
+    destination-currency:
+      type: string
+      required: true
+      description: Destination currency code (e.g. USDC)
+    source-amount:
+      type: string
+      required: true
+      description: Amount to convert
+  outputs:
+    result:
+      type: object
+      description: '{effective_rate, fee, from, out_amount}'
+- name: list-webhooks
+  description: List configured webhook endpoints.
+  outputs:
+    result:
+      type: object
+      description: '{cursor, items: [webhook configurations]}'
+- name: sandbox-mock-transaction
+  description: 'Create a mock transaction in the sandbox environment for testing.
+    Simulates a deposit arriving or a transfer completing.
+
+    '
+  inputs:
+    body:
+      type: object
+      required: true
+      description: 'Mock params: autoramp_id, amount, currency, initial_state'
+  outputs:
+    result:
+      type: object
+      description: Mock transaction object
+- name: get-autoramp-by-external-id
+  description: Get autoramp by external id.
+- name: patch-autoramp
+  description: Patch autoramp.
+- name: check-limit
+  description: Check limit.
+- name: retry-autoramp-auth
+  description: Retry autoramp auth.
+- name: create-open-banking-payment
+  description: Create open banking payment.
+- name: get-open-banking-payment
+  description: Get open banking payment.
+- name: get-transactions-by-ids
+  description: Get transactions by ids.
+- name: update-customer
+  description: Update customer.
+- name: get-customer-abilities
+  description: Get customer abilities.
+- name: get-identification
+  description: Get identification.
+- name: list-identifications
+  description: List identifications.
+- name: get-compliance-questionnaire
+  description: Get compliance questionnaire.
+- name: create-signing
+  description: Create signing.
+- name: list-signings
+  description: List signings.
+- name: get-required-signings
+  description: Get required signings.
+- name: list-crypto-addresses
+  description: List crypto addresses.
+- name: disable-crypto-address
+  description: Disable crypto address.
+- name: search-vasps
+  description: Search vasps.
+- name: get-bank-account
+  description: Get bank account.
+- name: delete-bank-account
+  description: Delete bank account.
+- name: retry-bank-auth
+  description: Retry bank auth.
+- name: get-auth-code
+  description: Get auth code.
+- name: submit-auth-code
+  description: Submit auth code.
+- name: get-microdeposits
+  description: Get microdeposits.
+- name: get-fee-profiles
+  description: Get fee profiles.
+- name: get-terms
+  description: Get terms.
+- name: get-country-subdivisions
+  description: Get country subdivisions.
