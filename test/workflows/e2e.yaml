@@ -34,65 +34,69 @@ jobs:
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
 
-      - name: Get exchange rate
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-exchange-rate
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
-          base-currency: USD
-          quote-currency: USDC
+      # NOTE: The following endpoints are not available in the Iron sandbox.
+      # Re-enable when sandbox support is added or when testing against
+      # a production API key.
 
-      - name: Get fee profiles
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-fee-profiles
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
+      # - name: Get exchange rate
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-exchange-rate
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
+      #     base-currency: USD
+      #     quote-currency: USDC
 
-      - name: Get terms of service
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-terms
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
+      # - name: Get fee profiles
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-fee-profiles
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
 
-      - name: Get country subdivisions
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-country-subdivisions
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
-          country-code: US
+      # - name: Get terms of service
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-terms
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
+
+      # - name: Get country subdivisions
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-country-subdivisions
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
+      #     country-code: US
 
       # ── Quotes ─────────────────────────────────────────────────────────────
 
-      - name: Get a quote for USD to USDC
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-quote
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
-          source-currency: USD
-          destination-currency: USDC
-          source-amount: "100.00"
-          side: source
+      # - name: Get a quote for USD to USDC
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-quote
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
+      #     source-currency: USD
+      #     destination-currency: USDC
+      #     source-amount: "100.00"
+      #     side: source
 
-      - name: Check limits
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: check-limit
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
-          source-currency: USD
-          destination-currency: USDC
+      # - name: Check limits
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: check-limit
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
+      #     source-currency: USD
+      #     destination-currency: USDC
 
-      - name: Get compliance questionnaire
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-compliance-questionnaire
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
+      # - name: Get compliance questionnaire
+      #   uses: w3-io/w3-iron-action@v0
+      #   with:
+      #     command: get-compliance-questionnaire
+      #     api-key: ${{ secrets.IRON_API_KEY }}
+      #     api-url: https://api.sandbox.iron.xyz
 
   writes:
     runs-on: ubuntu-latest
