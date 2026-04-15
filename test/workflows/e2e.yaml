@@ -25,21 +25,21 @@ jobs:
         with:
           command: list-cryptocurrencies
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
       - name: List fiat currencies
         uses: w3-io/w3-iron-action@v0
         with:
           command: list-fiat-currencies
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
       - name: Get exchange rate
         uses: w3-io/w3-iron-action@v0
         with:
           command: get-exchange-rate
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           base-currency: USD
           quote-currency: USDC
 
@@ -48,21 +48,21 @@ jobs:
         with:
           command: get-fee-profiles
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
       - name: Get terms of service
         uses: w3-io/w3-iron-action@v0
         with:
           command: get-terms
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
       - name: Get country subdivisions
         uses: w3-io/w3-iron-action@v0
         with:
           command: get-country-subdivisions
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           country-code: US
 
       # ── Quotes ─────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ jobs:
         with:
           command: get-quote
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           source-currency: USD
           destination-currency: USDC
           source-amount: "100.00"
@@ -83,7 +83,7 @@ jobs:
         with:
           command: check-limit
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           source-currency: USD
           destination-currency: USDC
 
@@ -92,7 +92,7 @@ jobs:
         with:
           command: get-compliance-questionnaire
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
   writes:
     runs-on: ubuntu-latest
@@ -105,7 +105,7 @@ jobs:
         with:
           command: create-customer
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           body: '{"email":"e2e-test@example.com","externalId":"e2e-test-001"}'
 
       - name: List customers
@@ -113,7 +113,7 @@ jobs:
         with:
           command: list-customers
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           limit: "5"
 
       - name: Get customer by external ID
@@ -121,7 +121,7 @@ jobs:
         with:
           command: get-customer-by-external-id
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           external-id: e2e-test-001
 
       - name: Get customer details
@@ -129,7 +129,7 @@ jobs:
         with:
           command: get-customer
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       - name: Get customer abilities
@@ -137,7 +137,7 @@ jobs:
         with:
           command: get-customer-abilities
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── KYC / Identification ───────────────────────────────────────────────
@@ -147,7 +147,7 @@ jobs:
         with:
           command: list-identifications
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Signings ───────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ jobs:
         with:
           command: get-required-signings
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       - name: List signings
@@ -165,7 +165,7 @@ jobs:
         with:
           command: list-signings
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Crypto Addresses ───────────────────────────────────────────────────
@@ -175,7 +175,7 @@ jobs:
         with:
           command: search-vasps
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           vasp-query: coinbase
 
       - name: List crypto addresses
@@ -183,7 +183,7 @@ jobs:
         with:
           command: list-crypto-addresses
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Bank Accounts ──────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ jobs:
         with:
           command: list-bank-accounts
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Transactions ───────────────────────────────────────────────────────
@@ -203,7 +203,7 @@ jobs:
         with:
           command: list-transactions
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           limit: "5"
 
       # ── Autoramps ──────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ jobs:
         with:
           command: list-autoramps
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
           limit: "5"
 
       # ── Webhooks ───────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ jobs:
         with:
           command: list-webhooks
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
 
       # ── Sandbox Operations ─────────────────────────────────────────────────
 
@@ -232,4 +232,4 @@ jobs:
         with:
           command: sandbox-reset
           api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://sandbox.api.iron.xyz
+          api-url: https://api.sandbox.iron.xyz
