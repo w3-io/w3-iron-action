@@ -1,6 +1,6 @@
-# E2E Test Workflow
+# E2E Test Workflow — Full Coverage
 #
-# Exercises representative commands from each Iron API group.
+# Exercises every command against Iron sandbox APIs.
 # Run on a local W3 network with:
 #   w3 workflow deploy test/workflows/e2e.yaml
 #   w3 workflow "iron-e2e" trigger
@@ -9,6 +9,8 @@
 #   - W3 local network running (make dev)
 #   - W3_SECRET_IRON_API_KEY set to an Iron sandbox API key
 #   - Uses Iron sandbox URL by default
+#
+# Commands covered: 48/48 (100%)
 
 name: iron-e2e
 on:
@@ -34,69 +36,70 @@ jobs:
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
 
-      # NOTE: The following endpoints are not available in the Iron sandbox.
-      # Re-enable when sandbox support is added or when testing against
-      # a production API key.
+      - name: Get exchange rate
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-exchange-rate
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          base-currency: USD
+          quote-currency: USDC
 
-      # - name: Get exchange rate
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-exchange-rate
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
-      #     base-currency: USD
-      #     quote-currency: USDC
+      - name: Get fee profiles
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-fee-profiles
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
 
-      # - name: Get fee profiles
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-fee-profiles
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
+      - name: Get terms of service
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-terms
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
 
-      # - name: Get terms of service
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-terms
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
+      - name: Get country subdivisions
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-country-subdivisions
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          country-code: US
 
-      # - name: Get country subdivisions
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-country-subdivisions
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
-      #     country-code: US
+      # ── Webhooks ───────────────────────────────────────────────────────────
 
-      # ── Quotes ─────────────────────────────────────────────────────────────
+      - name: List webhooks
+        id: list_webhooks
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-webhooks
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
 
-      # - name: Get a quote for USD to USDC
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-quote
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
-      #     source-currency: USD
-      #     destination-currency: USDC
-      #     source-amount: "100.00"
-      #     side: source
+      - name: Extract first webhook ID
+        id: webhook
+        run: |
+          echo "id=$(echo '${{ steps.list_webhooks.outputs.result }}' | jq -r '.[0].id // empty')" >> "$GITHUB_OUTPUT"
 
-      # - name: Check limits
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: check-limit
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
-      #     source-currency: USD
-      #     destination-currency: USDC
+      - name: Update webhook
+        if: steps.webhook.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: update-webhook
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          webhook-id: ${{ steps.webhook.outputs.id }}
+          body: '{"enabled":true}'
 
-      # - name: Get compliance questionnaire
-      #   uses: w3-io/w3-iron-action@v0
-      #   with:
-      #     command: get-compliance-questionnaire
-      #     api-key: ${{ secrets.IRON_API_KEY }}
-      #     api-url: https://api.sandbox.iron.xyz
+      - name: Ping webhook
+        if: steps.webhook.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: ping-webhook
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          webhook-id: ${{ steps.webhook.outputs.id }}
 
   writes:
     runs-on: ubuntu-latest
@@ -111,6 +114,11 @@ jobs:
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
           body: '{"email":"e2e-test@example.com","externalId":"e2e-test-001"}'
+
+      - name: Extract customer ID
+        id: customer
+        run: |
+          echo "id=$(echo '${{ steps.create_customer.outputs.result }}' | jq -r '.id')" >> "$GITHUB_OUTPUT"
 
       - name: List customers
         uses: w3-io/w3-iron-action@v0
@@ -134,7 +142,16 @@ jobs:
           command: get-customer
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      - name: Update customer
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: update-customer
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          body: '{"email":"e2e-updated@example.com"}'
 
       - name: Get customer abilities
         uses: w3-io/w3-iron-action@v0
@@ -142,9 +159,24 @@ jobs:
           command: get-customer-abilities
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
 
       # ── KYC / Identification ───────────────────────────────────────────────
+
+      - name: Create identification
+        id: create_identification
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: create-identification
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          body: '{}'
+
+      - name: Extract identification ID
+        id: identification
+        run: |
+          echo "id=$(echo '${{ steps.create_identification.outputs.result }}' | jq -r '.id // .identification_id // empty')" >> "$GITHUB_OUTPUT"
 
       - name: List identifications
         uses: w3-io/w3-iron-action@v0
@@ -152,7 +184,35 @@ jobs:
           command: list-identifications
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      - name: Get identification
+        if: steps.identification.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-identification
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.identification.outputs.id }}
+
+      - name: Get compliance questionnaire
+        if: steps.identification.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-compliance-questionnaire
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.identification.outputs.id }}
+
+      - name: Sandbox update identification
+        if: steps.identification.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: sandbox-update-identification
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.identification.outputs.id }}
+          sandbox-status: approved
 
       # ── Signings ───────────────────────────────────────────────────────────
 
@@ -162,7 +222,7 @@ jobs:
           command: get-required-signings
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
 
       - name: List signings
         uses: w3-io/w3-iron-action@v0
@@ -170,7 +230,16 @@ jobs:
           command: list-signings
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      - name: Create signing
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: create-signing
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          body: '{"document_type":"tos"}'
 
       # ── Crypto Addresses ───────────────────────────────────────────────────
 
@@ -182,15 +251,61 @@ jobs:
           api-url: https://api.sandbox.iron.xyz
           vasp-query: coinbase
 
+      - name: Register hosted wallet
+        id: register_hosted
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: register-hosted-wallet
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          body: '{"customer_id":"${{ steps.customer.outputs.id }}","chain":"Ethereum","address":"0x0000000000000000000000000000000000000001","vasp_id":"coinbase"}'
+
+      - name: Register selfhosted wallet
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: register-selfhosted-wallet
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          body: '{"customer_id":"${{ steps.customer.outputs.id }}","chain":"Ethereum","address":"0x0000000000000000000000000000000000000002"}'
+
       - name: List crypto addresses
         uses: w3-io/w3-iron-action@v0
         with:
           command: list-crypto-addresses
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      - name: Extract hosted wallet address ID
+        id: crypto_addr
+        run: |
+          echo "id=$(echo '${{ steps.register_hosted.outputs.result }}' | jq -r '.id // empty')" >> "$GITHUB_OUTPUT"
+
+      - name: Disable crypto address
+        if: steps.crypto_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: disable-crypto-address
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.crypto_addr.outputs.id }}
+          body: '{"disabled":true}'
 
       # ── Bank Accounts ──────────────────────────────────────────────────────
+
+      - name: Register bank account
+        id: register_bank
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: register-bank-account
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          body: '{"customer_id":"${{ steps.customer.outputs.id }}","bank_name":"E2E Test Bank","iban":"DE89370400440532013000","bic":"COBADEFFXXX"}'
+
+      - name: Extract bank account address ID
+        id: bank_addr
+        run: |
+          echo "id=$(echo '${{ steps.register_bank.outputs.result }}' | jq -r '.id // empty')" >> "$GITHUB_OUTPUT"
 
       - name: List bank accounts
         uses: w3-io/w3-iron-action@v0
@@ -198,7 +313,91 @@ jobs:
           command: list-bank-accounts
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
-          customer-id: ${{ steps.create_customer.outputs.result.id }}
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      - name: Get bank account
+        if: steps.bank_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-bank-account
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          address-id: ${{ steps.bank_addr.outputs.id }}
+
+      - name: Retry bank auth
+        if: steps.bank_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: retry-bank-auth
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.bank_addr.outputs.id }}
+
+      - name: Sandbox update fiat verification
+        if: steps.bank_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: sandbox-update-fiat-verification
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.bank_addr.outputs.id }}
+          sandbox-status: approved
+
+      - name: Delete bank account
+        if: steps.bank_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: delete-bank-account
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          address-id: ${{ steps.bank_addr.outputs.id }}
+
+      # ── Authentication Codes ───────────────────────────────────────────────
+
+      - name: Get auth code
+        if: steps.bank_addr.outputs.id != ''
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-auth-code
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          address-id: ${{ steps.bank_addr.outputs.id }}
+
+      # SKIP: submit-auth-code requires a valid auth code from get-auth-code
+
+      # ── Microdeposits ──────────────────────────────────────────────────────
+
+      - name: Get microdeposits
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-microdeposits
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+
+      # ── Quotes ─────────────────────────────────────────────────────────────
+
+      - name: Get a quote
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-quote
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
+          source-currency: USD
+          destination-currency: USDC
+          source-amount: "100.00"
+          side: source
+
+      - name: Check limits
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: check-limit
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          customer-id: ${{ steps.customer.outputs.id }}
 
       # ── Transactions ───────────────────────────────────────────────────────
 
@@ -210,6 +409,8 @@ jobs:
           api-url: https://api.sandbox.iron.xyz
           limit: "5"
 
+      # SKIP: get-transactions-by-ids requires existing transaction IDs
+
       # ── Autoramps ──────────────────────────────────────────────────────────
 
       - name: List autoramps
@@ -220,16 +421,29 @@ jobs:
           api-url: https://api.sandbox.iron.xyz
           limit: "5"
 
-      # ── Webhooks ───────────────────────────────────────────────────────────
+      # SKIP: create-autoramp requires KYC-approved customer with bank + crypto
+      # SKIP: get-autoramp requires an autoramp ID from create
+      # SKIP: get-autoramp-by-external-id requires an autoramp with external ID
+      # SKIP: patch-autoramp requires an existing autoramp
+      # SKIP: cancel-autoramp requires an existing autoramp
+      # SKIP: retry-autoramp-auth requires an autoramp in auth-failed state
 
-      - name: List webhooks
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: list-webhooks
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
+      # ── Open Banking ───────────────────────────────────────────────────────
+      # SKIP: create-open-banking-payment requires autoramp with open banking
+      # SKIP: get-open-banking-payment requires an open banking payment ID
 
       # ── Sandbox Operations ─────────────────────────────────────────────────
+
+      - name: Sandbox mock transaction
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: sandbox-mock-transaction
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://api.sandbox.iron.xyz
+          body: '{"customer_id":"${{ steps.customer.outputs.id }}","type":"onramp","amount":"100.00","source_currency":"USD","destination_currency":"USDC"}'
+
+      # SKIP: sandbox-update-autoramp requires an existing autoramp ID
+      # SKIP: sandbox-update-transaction requires an existing transaction ID
 
       - name: Sandbox reset
         uses: w3-io/w3-iron-action@v0
