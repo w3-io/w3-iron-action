@@ -100,6 +100,7 @@ jobs:
       # ── Customers ──────────────────────────────────────────────────────────
 
       - name: Create a customer
+        id: create_customer
         uses: w3-io/w3-iron-action@v0
         with:
           command: create-customer
@@ -129,7 +130,7 @@ jobs:
           command: get-customer
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       - name: Get customer abilities
         uses: w3-io/w3-iron-action@v0
@@ -137,7 +138,7 @@ jobs:
           command: get-customer-abilities
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── KYC / Identification ───────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ jobs:
           command: list-identifications
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Signings ───────────────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ jobs:
           command: get-required-signings
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       - name: List signings
         uses: w3-io/w3-iron-action@v0
@@ -165,7 +166,7 @@ jobs:
           command: list-signings
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Crypto Addresses ───────────────────────────────────────────────────
 
@@ -183,7 +184,7 @@ jobs:
           command: list-crypto-addresses
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Bank Accounts ──────────────────────────────────────────────────────
 
@@ -193,7 +194,7 @@ jobs:
           command: list-bank-accounts
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://sandbox.api.iron.xyz
-          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+          customer-id: ${{ steps.create_customer.outputs.result.id }}
 
       # ── Transactions ───────────────────────────────────────────────────────
 
