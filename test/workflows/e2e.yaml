@@ -11,216 +11,224 @@
 #   - Uses Iron sandbox URL by default
 
 name: iron-e2e
+on:
+  workflow_dispatch: {}
 
-steps:
-  # ── Reference Data ─────────────────────────────────────────────────────
+jobs:
+  reads:
+    runs-on: ubuntu-latest
+    steps:
+      # ── Reference Data ─────────────────────────────────────────────────────
 
-  - name: List cryptocurrencies
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-cryptocurrencies
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: List cryptocurrencies
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-cryptocurrencies
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  - name: List fiat currencies
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-fiat-currencies
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: List fiat currencies
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-fiat-currencies
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  - name: Get exchange rate
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-exchange-rate
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      base-currency: USD
-      quote-currency: USDC
+      - name: Get exchange rate
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-exchange-rate
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          base-currency: USD
+          quote-currency: USDC
 
-  - name: Get fee profiles
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-fee-profiles
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: Get fee profiles
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-fee-profiles
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  - name: Get terms of service
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-terms
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: Get terms of service
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-terms
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  - name: Get country subdivisions
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-country-subdivisions
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      country-code: US
+      - name: Get country subdivisions
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-country-subdivisions
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          country-code: US
 
-  # ── Quotes ─────────────────────────────────────────────────────────────
+      # ── Quotes ─────────────────────────────────────────────────────────────
 
-  - name: Get a quote for USD to USDC
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-quote
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      source-currency: USD
-      destination-currency: USDC
-      source-amount: "100.00"
-      side: source
+      - name: Get a quote for USD to USDC
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-quote
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          source-currency: USD
+          destination-currency: USDC
+          source-amount: "100.00"
+          side: source
 
-  - name: Check limits
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: check-limit
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      source-currency: USD
-      destination-currency: USDC
+      - name: Check limits
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: check-limit
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          source-currency: USD
+          destination-currency: USDC
 
-  # ── Customers ──────────────────────────────────────────────────────────
+      - name: Get compliance questionnaire
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-compliance-questionnaire
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  - name: Create a customer
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: create-customer
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      body: '{"email":"e2e-test@example.com","externalId":"e2e-test-001"}'
+  writes:
+    runs-on: ubuntu-latest
+    steps:
+      # ── Customers ──────────────────────────────────────────────────────────
 
-  - name: List customers
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-customers
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      limit: "5"
+      - name: Create a customer
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: create-customer
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          body: '{"email":"e2e-test@example.com","externalId":"e2e-test-001"}'
 
-  - name: Get customer by external ID
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-customer-by-external-id
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      external-id: e2e-test-001
+      - name: List customers
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-customers
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          limit: "5"
 
-  - name: Get customer details
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-customer
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: Get customer by external ID
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-customer-by-external-id
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          external-id: e2e-test-001
 
-  - name: Get customer abilities
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-customer-abilities
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: Get customer details
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-customer
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  # ── KYC / Identification ───────────────────────────────────────────────
+      - name: Get customer abilities
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-customer-abilities
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  - name: List identifications
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-identifications
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      # ── KYC / Identification ───────────────────────────────────────────────
 
-  - name: Get compliance questionnaire
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-compliance-questionnaire
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: List identifications
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-identifications
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  # ── Signings ───────────────────────────────────────────────────────────
+      # ── Signings ───────────────────────────────────────────────────────────
 
-  - name: Get required signings
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: get-required-signings
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: Get required signings
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: get-required-signings
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  - name: List signings
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-signings
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: List signings
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-signings
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  # ── Crypto Addresses ───────────────────────────────────────────────────
+      # ── Crypto Addresses ───────────────────────────────────────────────────
 
-  - name: Search VASPs
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: search-vasps
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      vasp-query: coinbase
+      - name: Search VASPs
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: search-vasps
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          vasp-query: coinbase
 
-  - name: List crypto addresses
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-crypto-addresses
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: List crypto addresses
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-crypto-addresses
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  # ── Bank Accounts ──────────────────────────────────────────────────────
+      # ── Bank Accounts ──────────────────────────────────────────────────────
 
-  - name: List bank accounts
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-bank-accounts
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      customer-id: ${{ steps.create-a-customer.outputs.result.id }}
+      - name: List bank accounts
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-bank-accounts
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          customer-id: ${{ steps.create-a-customer.outputs.result.id }}
 
-  # ── Transactions ───────────────────────────────────────────────────────
+      # ── Transactions ───────────────────────────────────────────────────────
 
-  - name: List transactions
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-transactions
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      limit: "5"
+      - name: List transactions
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-transactions
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          limit: "5"
 
-  # ── Autoramps ──────────────────────────────────────────────────────────
+      # ── Autoramps ──────────────────────────────────────────────────────────
 
-  - name: List autoramps
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-autoramps
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
-      limit: "5"
+      - name: List autoramps
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-autoramps
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
+          limit: "5"
 
-  # ── Webhooks ───────────────────────────────────────────────────────────
+      # ── Webhooks ───────────────────────────────────────────────────────────
 
-  - name: List webhooks
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: list-webhooks
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: List webhooks
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: list-webhooks
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
 
-  # ── Sandbox Operations ─────────────────────────────────────────────────
+      # ── Sandbox Operations ─────────────────────────────────────────────────
 
-  - name: Sandbox reset
-    uses: w3-io/w3-iron-action@v0
-    with:
-      command: sandbox-reset
-      api-key: ${{ secrets.IRON_API_KEY }}
-      api-url: https://sandbox.api.iron.xyz
+      - name: Sandbox reset
+        uses: w3-io/w3-iron-action@v0
+        with:
+          command: sandbox-reset
+          api-key: ${{ secrets.IRON_API_KEY }}
+          api-url: https://sandbox.api.iron.xyz
