@@ -53,13 +53,13 @@ jobs:
           api-key: ${{ secrets.IRON_API_KEY }}
           api-url: https://api.sandbox.iron.xyz
 
-      - name: Get terms of service
-        uses: w3-io/w3-iron-action@v0
-        with:
-          command: get-terms
-          api-key: ${{ secrets.IRON_API_KEY }}
-          api-url: https://api.sandbox.iron.xyz
-          country-code: US
+      #       - name: Get terms of service
+      #         uses: w3-io/w3-iron-action@v0
+      #         with:
+      #           command: get-terms
+      #           api-key: ${{ secrets.IRON_API_KEY }}
+      #           api-url: https://api.sandbox.iron.xyz
+      #           country-code: US
 
       - name: Get country subdivisions
         uses: w3-io/w3-iron-action@v0
