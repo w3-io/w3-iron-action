@@ -1,6 +1,12 @@
 # E2E Test Results
 
 > Last verified: 2026-04-15 -- YAML fixed, not yet run
+>
+> **Note (2026-04-16):** These results have not been verified against a
+> live sandbox run. The YAML was corrected on 2026-04-15 but the E2E
+> workflow needs to be re-executed with current credentials before the
+> Status column can be trusted. All statuses below remain NOT YET
+> VERIFIED until that re-run happens.
 
 ## Prerequisites
 
