@@ -282,12 +282,14 @@ commands:
       Returns USDC, EURC, USDT on Ethereum, Polygon, Arbitrum, Base, Solana, Stellar.
 
       "
+    inputs: {}
     outputs:
       result:
         type: array
         description: "[{code, name, chain, address, mint_only}]"
   - name: list-fiat-currencies
     description: List all supported fiat currencies (USD, EUR, GBP).
+    inputs: {}
     outputs:
       result:
         type: array
@@ -318,6 +320,7 @@ commands:
         description: "{effective_rate, fee, from, out_amount}"
   - name: list-webhooks
     description: List configured webhook endpoints.
+    inputs: {}
     outputs:
       result:
         type: object
