@@ -684,6 +684,57 @@ and wallet, then create an autoramp to convert USD to USDC.
       }
 ```
 
+## Sandbox limitations and tier requirements
+
+Iron's sandbox environment does not support every command. The table
+below summarizes what works in sandbox, what requires production, and
+what depends on an upgraded account tier.
+
+### Commands that work in sandbox
+
+All read-only reference-data, list, and sandbox-specific commands work
+with a standard sandbox API key:
+
+- `list-cryptocurrencies`, `list-fiat-currencies`, `get-fee-profiles`,
+  `get-terms`, `get-country-subdivisions`
+- `list-customers`, `list-transactions`, `list-autoramps`,
+  `list-webhooks`
+- `sandbox-reset`, `sandbox-mock-transaction`,
+  `sandbox-update-autoramp`, `sandbox-update-fiat-verification`,
+  `sandbox-update-identification`, `sandbox-update-transaction`
+
+### Commands that require production
+
+| Command             | Why                                          |
+| ------------------- | -------------------------------------------- |
+| `get-exchange-rate` | Sandbox returns a stub; live rates need prod |
+
+### Commands that require an upgraded sandbox or production
+
+| Command           | Why                                              |
+| ----------------- | ------------------------------------------------ |
+| `create-customer` | Customer creation is disabled on basic sandboxes |
+
+### Commands blocked until `create-customer` works
+
+The following commands all depend on having a customer ID. They are
+blocked in environments where `create-customer` is unavailable:
+
+- KYC: `create-identification`, `get-identification`,
+  `list-identifications`, `get-compliance-questionnaire`
+- Signing: `create-signing`, `list-signings`, `get-required-signings`
+- Bank: `register-bank-account`, `list-bank-accounts`,
+  `get-bank-account`, `delete-bank-account`, `retry-bank-auth`
+- Crypto: `register-hosted-wallet`, `register-selfhosted-wallet`,
+  `list-crypto-addresses`, `disable-crypto-address`
+- Autoramp lifecycle: `create-autoramp`, `get-autoramp`,
+  `cancel-autoramp`, `patch-autoramp`, `get-quote`, `check-limit`,
+  `retry-autoramp-auth`
+
+To exercise these commands end-to-end, you need either a production
+account or an upgraded sandbox that supports `create-customer`. Contact
+Iron support to confirm which tier unlocks customer creation in sandbox.
+
 ## Error handling
 
 The action fails with a descriptive message on:
