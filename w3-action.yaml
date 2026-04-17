@@ -1,8 +1,8 @@
 kind: integration
-name: Fiat-to-crypto on/off-ramp, stablecoin autoramps, and bank account management
+name: Iron
 version: 0.1.0
 repo: w3-io/w3-iron-action
-partner: Iron
+partner: iron
 description: Fiat-to-crypto on/off-ramp, stablecoin autoramps, and bank account management
 context:
   "Iron provides regulated fiat rails for crypto operations. On-ramp converts
@@ -337,60 +337,6 @@ commands:
       result:
         type: object
         description: Mock transaction object
-  - name: get-autoramp-by-external-id
-    description: Get autoramp by external id.
-  - name: patch-autoramp
-    description: Patch autoramp.
-  - name: check-limit
-    description: Check limit.
-  - name: retry-autoramp-auth
-    description: Retry autoramp auth.
-  - name: create-open-banking-payment
-    description: Create open banking payment.
-  - name: get-open-banking-payment
-    description: Get open banking payment.
-  - name: get-transactions-by-ids
-    description: Get transactions by ids.
-  - name: update-customer
-    description: Update customer.
-  - name: get-customer-abilities
-    description: Get customer abilities.
-  - name: get-identification
-    description: Get identification.
-  - name: list-identifications
-    description: List identifications.
-  - name: get-compliance-questionnaire
-    description: Get compliance questionnaire.
-  - name: create-signing
-    description: Create signing.
-  - name: list-signings
-    description: List signings.
-  - name: get-required-signings
-    description: Get required signings.
-  - name: list-crypto-addresses
-    description: List crypto addresses.
-  - name: disable-crypto-address
-    description: Disable crypto address.
-  - name: search-vasps
-    description: Search vasps.
-  - name: get-bank-account
-    description: Get bank account.
-  - name: delete-bank-account
-    description: Delete bank account.
-  - name: retry-bank-auth
-    description: Retry bank auth.
-  - name: get-auth-code
-    description: Get auth code.
-  - name: submit-auth-code
-    description: Submit auth code.
-  - name: get-microdeposits
-    description: Get microdeposits.
-  - name: get-fee-profiles
-    description: Get fee profiles.
-  - name: get-terms
-    description: Get terms.
-  - name: get-country-subdivisions
-    description: Get country subdivisions.
   - name: update-webhook
     description: Update a webhook endpoint configuration.
     inputs:
@@ -402,6 +348,10 @@ commands:
         type: object
         required: true
         description: Updated webhook configuration as JSON
+    outputs:
+      result:
+        type: object
+        description: Updated webhook configuration
   - name: ping-webhook
     description: Send a test ping to a webhook endpoint.
     inputs:
@@ -409,8 +359,10 @@ commands:
         type: string
         required: true
         description: Webhook ID to ping
-  - name: sandbox-reset
-    description: Reset the sandbox environment to its initial state.
+    outputs:
+      result:
+        type: object
+        description: Ping response with delivery status
   - name: sandbox-update-autoramp
     description: Update an autoramp status in sandbox for testing.
     inputs:
@@ -422,6 +374,10 @@ commands:
         type: string
         required: false
         description: New status (or provide via body)
+    outputs:
+      result:
+        type: object
+        description: Updated autoramp object with new status
   - name: sandbox-update-fiat-verification
     description: Update a fiat address verification status in sandbox.
     inputs:
@@ -433,6 +389,10 @@ commands:
         type: string
         required: false
         description: New status (or provide via body)
+    outputs:
+      result:
+        type: object
+        description: Updated fiat address with new verification status
   - name: sandbox-update-identification
     description: Update an identification status in sandbox for testing.
     inputs:
@@ -444,6 +404,10 @@ commands:
         type: string
         required: false
         description: New status (or provide via body)
+    outputs:
+      result:
+        type: object
+        description: Updated identification with new status
   - name: sandbox-update-transaction
     description: Update a transaction state in sandbox for testing.
     inputs:
@@ -455,3 +419,7 @@ commands:
         type: string
         required: false
         description: New state (or provide via body)
+    outputs:
+      result:
+        type: object
+        description: Updated transaction with new state
