@@ -27994,7 +27994,7 @@ function createMockCore() {
 
 
 
-;// CONCATENATED MODULE: ./src/index.js
+;// CONCATENATED MODULE: ./src/commands.js
 
 
 
@@ -28117,7 +28117,7 @@ function handler(command, fn) {
   };
 }
 
-const router = createCommandRouter({
+const COMMANDS = {
   // -----------------------------------------------------------------
   // Autoramps
   // -----------------------------------------------------------------
@@ -28180,7 +28180,9 @@ const router = createCommandRouter({
   }),
 
   "check-limit": handler("check-limit", async (request) => {
-    const qs = queryString({ customer_id: lib_core.getInput("customer-id") || "" });
+    const qs = queryString({
+      customer_id: lib_core.getInput("customer-id") || "",
+    });
     return request("GET", `/autoramps/check-limit${qs}`);
   }),
 
@@ -28657,7 +28659,17 @@ const router = createCommandRouter({
       });
     },
   ),
-});
+};
+
+function createRouter() {
+  return createCommandRouter(COMMANDS);
+}
+
+;// CONCATENATED MODULE: ./src/index.js
+
+
+
+const router = createRouter();
 
 // Suppress noisy unhandled rejection warnings; the wrapper below
 // catches via handleError, which calls core.setFailed.
